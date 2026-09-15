@@ -45,11 +45,9 @@ export default function VendorLoginPage() {
         "success"
       );
 
-      const params = searchParams.get("redirect");
+      const redirectTo = searchParams.get("redirect") || "/vendor/dashboard";
 
-      if (params) router.push(`/vendor/dashboard`);
-
-      router.push("/vendor");
+      router.push(redirectTo);
       setIsLoading(false);
     }, 1000);
   };

@@ -12,6 +12,14 @@ import { Switch } from "@/components/ui/switch"
 import { useUser } from "@/lib/user-context"
 import { useNotification } from "@/lib/notification-context"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 
 export default function VendorSettingsPage() {
   const { user, updateProfile } = useUser()
@@ -42,6 +50,14 @@ export default function VendorSettingsPage() {
     routingNumber: "****5678",
   })
 
+  const [passwordForm, setPasswordForm] = useState({
+    currentPassword: "",
+    newPassword: "",
+    confirmPassword: "",
+  })
+
+  const [isDeactivateDialogOpen, setIsDeactivateDialogOpen] = useState(false)
+
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (file) {
@@ -71,6 +87,28 @@ export default function VendorSettingsPage() {
 
   const handleSavePayment = () => {
     addNotification("Payment information updated", "success")
+  }
+
+  const handleUpdatePassword = () => {
+    const { currentPassword, newPassword, confirmPassword } = passwordForm
+
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      addNotification("Fill in all password fields", "error")
+      return
+    }
+
+    if (newPassword !== confirmPassword) {
+      addNotification("New password and confirmation do not match", "error")
+      return
+    }
+
+    setPasswordForm({ currentPassword: "", newPassword: "", confirmPassword: "" })
+    addNotification("Password updated successfully", "success")
+  }
+
+  const handleDeactivateAccount = () => {
+    setIsDeactivateDialogOpen(false)
+    addNotification("Account deactivation requested", "success")
   }
 
   return (
@@ -355,17 +393,34 @@ export default function VendorSettingsPage() {
                 <div className="space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="currentPassword">Current Password</Label>
-                    <Input id="currentPassword" type="password" />
+                    <Input
+                      id="currentPassword"
+                      type="password"
+                      value={passwordForm.currentPassword}
+                      onChange={(e) => setPasswordForm({ ...passwordForm, currentPassword: e.target.value })}
+                    />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="newPassword">New Password</Label>
-                    <Input id="newPassword" type="password" />
+                    <Input
+                      id="newPassword"
+                      type="password"
+                      value={passwordForm.newPassword}
+                      onChange={(e) => setPasswordForm({ ...passwordForm, newPassword: e.target.value })}
+                    />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="confirmPassword">Confirm New Password</Label>
-                    <Input id="confirmPassword" type="password" />
+                    <Input
+                      id="confirmPassword"
+                      type="password"
+                      value={passwordForm.confirmPassword}
+                      onChange={(e) => setPasswordForm({ ...passwordForm, confirmPassword: e.target.value })}
+                    />
                   </div>
-                  <Button className="w-full md:w-auto">Update Password</Button>
+                  <Button className="w-full md:w-auto" onClick={handleUpdatePassword}>
+                    Update Password
+                  </Button>
                 </div>
               </div>
 
@@ -383,7 +438,11 @@ export default function VendorSettingsPage() {
               <div className="border-t pt-6">
                 <h3 className="font-semibold mb-4 text-red-600">Danger Zone</h3>
                 <div className="space-y-4">
-                  <Button variant="outline" className="w-full md:w-auto text-red-600 hover:text-red-700 bg-transparent">
+                  <Button
+                    variant="outline"
+                    className="w-full md:w-auto text-red-600 hover:text-red-700 bg-transparent"
+                    onClick={() => setIsDeactivateDialogOpen(true)}
+                  >
                     Deactivate Account
                   </Button>
                 </div>
@@ -392,6 +451,26 @@ export default function VendorSettingsPage() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      <Dialog open={isDeactivateDialogOpen} onOpenChange={setIsDeactivateDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Deactivate your account?</DialogTitle>
+            <DialogDescription>
+              Your storefront will be hidden from students and you won&apos;t be able to receive new orders until you
+              reactivate.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsDeactivateDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleDeactivateAccount}>
+              Deactivate Account
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

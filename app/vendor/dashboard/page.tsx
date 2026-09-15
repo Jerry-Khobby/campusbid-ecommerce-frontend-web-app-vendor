@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import { Card } from "@/components/ui/card"
 
 const stats = [
@@ -114,22 +115,34 @@ export default function VendorDashboardPage() {
         <Card className="p-6">
           <h2 className="text-xl font-semibold mb-4">Quick Actions</h2>
           <div className="grid grid-cols-2 gap-4">
-            <button className="p-4 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors">
+            <Link
+              href="/vendor/products"
+              className="block p-4 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"
+            >
               <div className="text-2xl mb-2">📦</div>
               <p className="text-sm font-medium">Add Product</p>
-            </button>
-            <button className="p-4 bg-muted hover:bg-muted/80 rounded-lg transition-colors">
+            </Link>
+            <Link
+              href="/vendor/orders"
+              className="block p-4 bg-muted hover:bg-muted/80 rounded-lg transition-colors"
+            >
               <div className="text-2xl mb-2">🛒</div>
               <p className="text-sm font-medium">View Orders</p>
-            </button>
-            <button className="p-4 bg-muted hover:bg-muted/80 rounded-lg transition-colors">
+            </Link>
+            <Link
+              href="/vendor/bids"
+              className="block p-4 bg-muted hover:bg-muted/80 rounded-lg transition-colors"
+            >
               <div className="text-2xl mb-2">⚡</div>
               <p className="text-sm font-medium">Review Bids</p>
-            </button>
-            <button className="p-4 bg-muted hover:bg-muted/80 rounded-lg transition-colors">
-              <div className="text-2xl mb-2">📊</div>
-              <p className="text-sm font-medium">Analytics</p>
-            </button>
+            </Link>
+            <Link
+              href="/vendor/messages"
+              className="block p-4 bg-muted hover:bg-muted/80 rounded-lg transition-colors"
+            >
+              <div className="text-2xl mb-2">💬</div>
+              <p className="text-sm font-medium">Messages</p>
+            </Link>
           </div>
         </Card>
       </div>

@@ -1,7 +1,5 @@
-import React from "react";
+import { redirect } from "next/navigation";
 
-const page = () => {
-  return <div>Vendor's page</div>;
-};
-
-export default page;
+export default function VendorIndexPage() {
+  redirect("/vendor/dashboard");
+}

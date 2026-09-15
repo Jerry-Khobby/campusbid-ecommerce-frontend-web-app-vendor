@@ -93,6 +93,11 @@ export default function VendorProductsPage() {
   )
 
   const handleAddProduct = () => {
+    if (!newProduct.name.trim() || newProduct.price <= 0) {
+      addNotification("Enter a product name and a price greater than $0", "error")
+      return
+    }
+
     const product: Product = {
       id: products.length + 1,
       ...newProduct,
@@ -107,6 +112,12 @@ export default function VendorProductsPage() {
 
   const handleEditProduct = () => {
     if (!editingProduct) return
+
+    if (!editingProduct.name.trim() || editingProduct.price <= 0) {
+      addNotification("Enter a product name and a price greater than $0", "error")
+      return
+    }
+
     setProducts(products.map((p) => (p.id === editingProduct.id ? editingProduct : p)))
     setEditingProduct(null)
     addNotification("Product updated successfully", "success")

@@ -1,7 +1,7 @@
 "use client";
 
 import type React from "react";
-import { createContext, useContext, useState } from "react";
+import { createContext, useContext, useEffect, useState } from "react";
 
 export interface User {
   id: string;
@@ -24,6 +24,7 @@ interface UserContextType {
   user: User | null;
   setUser: React.Dispatch<React.SetStateAction<User | null>>;
   isLoggedIn: boolean;
+  isLoading: boolean;
   login: (email: string, password: string, name: string) => void;
   logout: () => void;
   updateProfile: (updates: Partial<User>) => void;
@@ -32,6 +33,8 @@ interface UserContextType {
 }
 
 const UserContext = createContext<UserContextType | undefined>(undefined);
+
+const STORAGE_KEY = "campusbid-vendor-user";
 
 const defaultUser: User = {
   id: "user-001",
@@ -50,25 +53,59 @@ const defaultUser: User = {
   savedItems: [],
 };
 
+function readStoredUser(): User | null {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? (JSON.parse(raw) as User) : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeStoredUser(user: User | null): void {
+  try {
+    if (user) localStorage.setItem(STORAGE_KEY, JSON.stringify(user));
+    else localStorage.removeItem(STORAGE_KEY);
+  } catch {
+    // localStorage can be unavailable (private browsing, disabled storage) — the
+    // session simply won't persist across reloads in that case.
+  }
+}
+
 export function UserProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const storedUser = readStoredUser();
+    if (storedUser) {
+      setUser(storedUser);
+      setIsLoggedIn(true);
+    }
+    setIsLoading(false);
+  }, []);
 
   const login = (email: string, password: string, name: string) => {
     if (email && password && name) {
-      setUser({ ...defaultUser, email, name });
+      const nextUser = { ...defaultUser, email, name };
+      setUser(nextUser);
       setIsLoggedIn(true);
+      writeStoredUser(nextUser);
     }
   };
 
   const logout = () => {
     setUser(null);
     setIsLoggedIn(false);
+    writeStoredUser(null);
   };
 
   const updateProfile = (updates: Partial<User>) => {
     if (user) {
-      setUser({ ...user, ...updates });
+      const nextUser = { ...user, ...updates };
+      setUser(nextUser);
+      writeStoredUser(nextUser);
     }
   };
 
@@ -77,13 +114,17 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       const savedItems = user.savedItems.includes(itemId)
         ? user.savedItems.filter((id) => id !== itemId)
         : [...user.savedItems, itemId];
-      setUser({ ...user, savedItems });
+      const nextUser = { ...user, savedItems };
+      setUser(nextUser);
+      writeStoredUser(nextUser);
     }
   };
 
   const updateProfileImage = (imageUrl: string) => {
     if (user) {
-      setUser({ ...user, profileImage: imageUrl });
+      const nextUser = { ...user, profileImage: imageUrl };
+      setUser(nextUser);
+      writeStoredUser(nextUser);
     }
   };
 
@@ -93,6 +134,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
         user,
         setUser,
         isLoggedIn,
+        isLoading,
         login,
         logout,
         updateProfile,

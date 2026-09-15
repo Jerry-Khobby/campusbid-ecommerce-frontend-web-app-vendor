@@ -4,6 +4,12 @@ import { useState } from "react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { useNotification } from "@/lib/notification-context"
 
 interface Message {
@@ -132,18 +138,26 @@ const mockConversations: Conversation[] = [
 ]
 
 const PREDEFINED_MESSAGES = [
-  "Are you satisfied with the product",
-  "Have your product been delivered",
-  "I need more of the items",
-  "I'm okay with the product",
+  "Yes, it's still available!",
+  "Sorry, that item is currently out of stock.",
+  "Your order will be ready in about 10 minutes.",
+  "Thank you for your order!",
+  "Yes, we can customize that for you.",
+  "Your order is ready for pickup.",
+  "Sorry for the delay, we're working on it.",
+  "Is there anything else you'd like to add?",
   "Yes",
-  "No",
+  "No, sorry.",
 ]
 
 export default function VendorMessagesPage() {
-  const [conversations, setConversations] = useState<Conversation[]>(mockConversations)
+  const [conversations, setConversations] = useState<Conversation[]>(() =>
+    mockConversations.map((conv, index) => (index === 0 ? { ...conv, unread: 0 } : conv)),
+  )
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(conversations[0])
   const [searchQuery, setSearchQuery] = useState("")
+  const [isOptionsOpen, setIsOptionsOpen] = useState(false)
+  const [isChatOpen, setIsChatOpen] = useState(false)
   const { addNotification } = useNotification()
 
   const filteredConversations = conversations.filter((conv) =>
@@ -181,6 +195,25 @@ export default function VendorMessagesPage() {
     addNotification("Message sent", "success")
   }
 
+  const handleSelectConversation = (conversation: Conversation) => {
+    const readConversation = { ...conversation, unread: 0 }
+
+    setConversations(conversations.map((conv) => (conv.id === conversation.id ? readConversation : conv)))
+    setSelectedConversation(readConversation)
+    setIsChatOpen(true)
+  }
+
+  const handleClearConversation = () => {
+    if (!selectedConversation) return
+
+    setConversations(
+      conversations.map((conv) => (conv.id === selectedConversation.id ? { ...conv, messages: [] } : conv)),
+    )
+    setSelectedConversation({ ...selectedConversation, messages: [] })
+    setIsOptionsOpen(false)
+    addNotification("Conversation cleared", "success")
+  }
+
   const totalUnread = conversations.reduce((sum, conv) => sum + conv.unread, 0)
 
   return (
@@ -197,9 +230,11 @@ export default function VendorMessagesPage() {
         )}
       </div>
 
-      <Card className="h-[calc(100vh-240px)] flex overflow-hidden">
+      <Card className="h-[calc(100vh-240px)] flex-row gap-0 py-0 overflow-hidden">
         {/* Conversations List */}
-        <div className="w-full md:w-80 border-r border-border flex flex-col">
+        <div
+          className={`${isChatOpen ? "hidden md:flex" : "flex"} w-full md:w-80 border-r border-border flex-col`}
+        >
           <div className="p-4 border-b border-border">
             <div className="relative">
               <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground text-xl">
@@ -218,7 +253,7 @@ export default function VendorMessagesPage() {
             {filteredConversations.map((conv) => (
               <button
                 key={conv.id}
-                onClick={() => setSelectedConversation(conv)}
+                onClick={() => handleSelectConversation(conv)}
                 className={`w-full p-4 border-b border-border hover:bg-muted/50 transition-colors text-left ${
                   selectedConversation?.id === conv.id ? "bg-muted" : ""
                 }`}
@@ -250,10 +285,16 @@ export default function VendorMessagesPage() {
 
         {/* Chat Area */}
         {selectedConversation ? (
-          <div className="flex-1 flex flex-col">
+          <div className={`${isChatOpen ? "flex" : "hidden md:flex"} flex-1 flex-col`}>
             {/* Chat Header */}
             <div className="p-4 border-b border-border flex items-center justify-between">
               <div className="flex items-center gap-3">
+                <button
+                  onClick={() => setIsChatOpen(false)}
+                  className="md:hidden p-2 -ml-2 hover:bg-muted rounded-lg transition-colors"
+                >
+                  <span className="text-xl">←</span>
+                </button>
                 <div className="relative">
                   <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center">
                     <span className="text-sm font-medium text-primary">{selectedConversation.customerAvatar}</span>
@@ -267,7 +308,7 @@ export default function VendorMessagesPage() {
                   <p className="text-xs text-muted-foreground">{selectedConversation.online ? "Online" : "Offline"}</p>
                 </div>
               </div>
-              <Button variant="ghost" size="sm">
+              <Button variant="ghost" size="sm" onClick={() => setIsOptionsOpen(true)}>
                 <span className="text-xl">⋮</span>
               </Button>
             </div>
@@ -300,7 +341,7 @@ export default function VendorMessagesPage() {
             {/* Message Input */}
             <div className="p-4 border-t border-border bg-background">
               <p className="text-xs text-muted-foreground mb-3 text-center font-medium">
-                💬 Select a quick reply to send:
+                💬 Select a message to send:
               </p>
               <div className="grid grid-cols-2 gap-2">
                 {PREDEFINED_MESSAGES.map((message, index) => (
@@ -317,11 +358,34 @@ export default function VendorMessagesPage() {
             </div>
           </div>
         ) : (
-          <div className="flex-1 flex items-center justify-center text-muted-foreground">
+          <div className="hidden md:flex flex-1 items-center justify-center text-muted-foreground">
             <p>Select a conversation to start messaging</p>
           </div>
         )}
       </Card>
+
+      <Dialog open={isOptionsOpen} onOpenChange={setIsOptionsOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Conversation options</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Button
+              variant="outline"
+              className="w-full justify-start"
+              onClick={() => {
+                setIsOptionsOpen(false)
+                addNotification("Customer profiles coming soon!", "info")
+              }}
+            >
+              View customer profile
+            </Button>
+            <Button variant="outline" className="w-full justify-start" onClick={handleClearConversation}>
+              Clear conversation
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
