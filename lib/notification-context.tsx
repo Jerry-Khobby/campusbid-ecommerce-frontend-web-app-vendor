@@ -18,11 +18,17 @@ interface NotificationContextType {
 
 const NotificationContext = createContext<NotificationContextType | undefined>(undefined)
 
+let notificationIdCounter = 0
+function createNotificationId(): string {
+  notificationIdCounter += 1
+  return `${Date.now()}-${notificationIdCounter}`
+}
+
 export function NotificationProvider({ children }: { children: React.ReactNode }) {
   const [notifications, setNotifications] = useState<Notification[]>([])
 
   const addNotification = useCallback((message: string, type: Notification["type"] = "info", duration = 3000) => {
-    const id = Date.now().toString()
+    const id = createNotificationId()
     const notification: Notification = { id, message, type, duration }
 
     setNotifications((prev) => [...prev, notification])
