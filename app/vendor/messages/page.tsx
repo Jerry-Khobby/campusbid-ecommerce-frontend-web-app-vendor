@@ -1,6 +1,7 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
+import type { Socket } from "socket.io-client"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -11,210 +12,182 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { useNotification } from "@/lib/notification-context"
+import { useUser } from "@/lib/user-context"
+import { ApiError } from "@/lib/api/client"
+import { fetchConversations, fetchMessages, fetchPredefinedMessages } from "@/lib/api/chat"
+import {
+  CHAT_EVENTS,
+  createChatSocket,
+  joinConversation,
+  markConversationRead,
+  sendChatMessage,
+} from "@/lib/socket/chat-socket"
+import type { Conversation, Message, PredefinedMessage } from "@/lib/api/types"
 
-interface Message {
-  id: string
-  text: string
-  sender: "vendor" | "customer"
-  timestamp: string
+const MINUTE_MS = 60_000
+const HOUR_MS = 60 * MINUTE_MS
+const DAY_MS = 24 * HOUR_MS
+
+function getErrorMessage(error: unknown): string {
+  return error instanceof ApiError ? error.message : "Something went wrong. Please try again."
 }
 
-interface Conversation {
-  id: string
-  customer: string
-  customerAvatar: string
-  lastMessage: string
-  timestamp: string
-  unread: number
-  online: boolean
-  messages: Message[]
+function formatMessageTime(iso: string): string {
+  return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
 }
 
-const mockConversations: Conversation[] = [
-  {
-    id: "CONV-001",
-    customer: "John Doe",
-    customerAvatar: "JD",
-    lastMessage: "Is the coffee still available?",
-    timestamp: "2m ago",
-    unread: 2,
-    online: true,
-    messages: [
-      {
-        id: "MSG-001",
-        text: "Hi! I'm interested in the Coffee & Pastry Bundle",
-        sender: "customer",
-        timestamp: "10:30 AM",
-      },
-      {
-        id: "MSG-002",
-        text: "Hello! Yes, we have it available. Would you like to place an order?",
-        sender: "vendor",
-        timestamp: "10:31 AM",
-      },
-      {
-        id: "MSG-003",
-        text: "Is the coffee still available?",
-        sender: "customer",
-        timestamp: "10:35 AM",
-      },
-    ],
-  },
-  {
-    id: "CONV-002",
-    customer: "Jane Smith",
-    customerAvatar: "JS",
-    lastMessage: "Thank you for the quick service!",
-    timestamp: "1h ago",
-    unread: 0,
-    online: false,
-    messages: [
-      {
-        id: "MSG-004",
-        text: "When will my order be ready?",
-        sender: "customer",
-        timestamp: "9:15 AM",
-      },
-      {
-        id: "MSG-005",
-        text: "Your order will be ready in about 10 minutes!",
-        sender: "vendor",
-        timestamp: "9:16 AM",
-      },
-      {
-        id: "MSG-006",
-        text: "Thank you for the quick service!",
-        sender: "customer",
-        timestamp: "9:30 AM",
-      },
-    ],
-  },
-  {
-    id: "CONV-003",
-    customer: "Mike Johnson",
-    customerAvatar: "MJ",
-    lastMessage: "Can I customize my order?",
-    timestamp: "3h ago",
-    unread: 1,
-    online: true,
-    messages: [
-      {
-        id: "MSG-007",
-        text: "Can I customize my order?",
-        sender: "customer",
-        timestamp: "8:00 AM",
-      },
-    ],
-  },
-  {
-    id: "CONV-004",
-    customer: "Sarah Williams",
-    customerAvatar: "SW",
-    lastMessage: "Perfect, I'll pick it up soon",
-    timestamp: "Yesterday",
-    unread: 0,
-    online: false,
-    messages: [
-      {
-        id: "MSG-008",
-        text: "Is the sushi fresh today?",
-        sender: "customer",
-        timestamp: "Yesterday 2:30 PM",
-      },
-      {
-        id: "MSG-009",
-        text: "Yes! We prepare it fresh every morning.",
-        sender: "vendor",
-        timestamp: "Yesterday 2:31 PM",
-      },
-      {
-        id: "MSG-010",
-        text: "Perfect, I'll pick it up soon",
-        sender: "customer",
-        timestamp: "Yesterday 2:35 PM",
-      },
-    ],
-  },
-]
+function formatRelativeTime(iso: string): string {
+  const elapsedMs = Date.now() - new Date(iso).getTime()
+  if (elapsedMs < MINUTE_MS) return "just now"
+  if (elapsedMs < HOUR_MS) return `${Math.floor(elapsedMs / MINUTE_MS)}m ago`
+  if (elapsedMs < DAY_MS) return `${Math.floor(elapsedMs / HOUR_MS)}h ago`
+  return new Date(iso).toLocaleDateString()
+}
 
-const PREDEFINED_MESSAGES = [
-  "Yes, it's still available!",
-  "Sorry, that item is currently out of stock.",
-  "Your order will be ready in about 10 minutes.",
-  "Thank you for your order!",
-  "Yes, we can customize that for you.",
-  "Your order is ready for pickup.",
-  "Sorry for the delay, we're working on it.",
-  "Is there anything else you'd like to add?",
-  "Yes",
-  "No, sorry.",
-]
+/** The backend never populates participants.customerId, so there's no name to show —
+ * a short, stable label derived from the id at least lets conversations be told apart. */
+function getCustomerLabel(conversation: Conversation): string {
+  return `Customer #${conversation.participants.customerId.slice(-6)}`
+}
+
+function getCustomerInitials(conversation: Conversation): string {
+  return conversation.participants.customerId.slice(-2).toUpperCase()
+}
 
 export default function VendorMessagesPage() {
-  const [conversations, setConversations] = useState<Conversation[]>(() =>
-    mockConversations.map((conv, index) => (index === 0 ? { ...conv, unread: 0 } : conv)),
-  )
-  const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(conversations[0])
+  const { user } = useUser()
+  const { addNotification } = useNotification()
+
+  const [conversations, setConversations] = useState<Conversation[]>([])
+  const [predefinedMessages, setPredefinedMessages] = useState<PredefinedMessage[]>([])
+  const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null)
+  const [messages, setMessages] = useState<Message[]>([])
   const [searchQuery, setSearchQuery] = useState("")
   const [isOptionsOpen, setIsOptionsOpen] = useState(false)
   const [isChatOpen, setIsChatOpen] = useState(false)
-  const { addNotification } = useNotification()
+  const [isLoadingConversations, setIsLoadingConversations] = useState(true)
+  const [isLoadingMessages, setIsLoadingMessages] = useState(false)
 
-  const filteredConversations = conversations.filter((conv) =>
-    conv.customer.toLowerCase().includes(searchQuery.toLowerCase()),
-  )
+  const socketRef = useRef<Socket | null>(null)
+  const selectedConversationIdRef = useRef<string | null>(null)
 
-  const handleSendMessage = (messageText: string) => {
-    if (!messageText.trim() || !selectedConversation) return
+  useEffect(() => {
+    selectedConversationIdRef.current = selectedConversationId
+  }, [selectedConversationId])
 
-    const newMessage: Message = {
-      id: `MSG-${Date.now()}`,
-      text: messageText,
-      sender: "vendor",
-      timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+  useEffect(() => {
+    let isCancelled = false
+
+    Promise.all([fetchConversations(), fetchPredefinedMessages()])
+      .then(([conversationData, predefinedData]) => {
+        if (!isCancelled) {
+          setConversations(conversationData)
+          setPredefinedMessages(predefinedData)
+        }
+      })
+      .catch((error) => {
+        if (!isCancelled) addNotification(getErrorMessage(error), "error")
+      })
+      .finally(() => {
+        if (!isCancelled) setIsLoadingConversations(false)
+      })
+
+    return () => {
+      isCancelled = true
+    }
+  }, [addNotification])
+
+  // Connect once on mount; the same socket is reused across conversation switches and re-renders.
+  useEffect(() => {
+    const socket = createChatSocket()
+    socketRef.current = socket
+
+    const handleMessageReceived = (message: Message) => {
+      if (message.conversationId !== selectedConversationIdRef.current) return
+      setMessages((previous) => [...previous, message])
     }
 
-    setConversations(
-      conversations.map((conv) =>
-        conv.id === selectedConversation.id
-          ? {
-              ...conv,
-              messages: [...conv.messages, newMessage],
-              lastMessage: messageText,
-              timestamp: "Just now",
-            }
-          : conv,
-      ),
+    socket.on(CHAT_EVENTS.messageReceived, handleMessageReceived)
+    socket.connect()
+
+    return () => {
+      socket.off(CHAT_EVENTS.messageReceived, handleMessageReceived)
+      socket.disconnect()
+      socketRef.current = null
+    }
+  }, [])
+
+  // Join the selected conversation's room and mark it read whenever the selection changes.
+  useEffect(() => {
+    const socket = socketRef.current
+    if (!socket || !selectedConversationId) return
+
+    const joinAndMarkRead = () => {
+      joinConversation(socket, selectedConversationId)
+      markConversationRead(socket, selectedConversationId)
+    }
+
+    if (socket.connected) joinAndMarkRead()
+    else socket.once("connect", joinAndMarkRead)
+
+    return () => {
+      socket.off("connect", joinAndMarkRead)
+    }
+  }, [selectedConversationId])
+
+  useEffect(() => {
+    if (!selectedConversationId) return
+    let isCancelled = false
+
+    setMessages([])
+    setIsLoadingMessages(true)
+
+    fetchMessages(selectedConversationId)
+      .then((data) => {
+        if (!isCancelled) setMessages([...data].reverse())
+      })
+      .catch((error) => {
+        if (!isCancelled) addNotification(getErrorMessage(error), "error")
+      })
+      .finally(() => {
+        if (!isCancelled) setIsLoadingMessages(false)
+      })
+
+    return () => {
+      isCancelled = true
+    }
+  }, [selectedConversationId, addNotification])
+
+  const selectedConversation = conversations.find((c) => c._id === selectedConversationId) ?? null
+
+  const filteredConversations = conversations.filter((conv) =>
+    getCustomerLabel(conv).toLowerCase().includes(searchQuery.toLowerCase()),
+  )
+
+  const handleSelectConversation = (conversation: Conversation) => {
+    setSelectedConversationId(conversation._id)
+    setIsChatOpen(true)
+    setConversations((current) =>
+      current.map((c) => (c._id === conversation._id ? { ...c, unreadCount: { ...c.unreadCount, vendor: 0 } } : c)),
     )
+  }
 
-    setSelectedConversation({
-      ...selectedConversation,
-      messages: [...selectedConversation.messages, newMessage],
+  const handleSendPredefined = (predefined: PredefinedMessage) => {
+    const socket = socketRef.current
+    if (!socket || !selectedConversationId || !user) return
+
+    sendChatMessage(socket, {
+      conversationId: selectedConversationId,
+      senderId: user.id,
+      senderType: "vendor",
+      messageType: "predefined",
+      content: predefined.text,
+      predefinedMessageId: predefined._id,
     })
-
     addNotification("Message sent", "success")
   }
 
-  const handleSelectConversation = (conversation: Conversation) => {
-    const readConversation = { ...conversation, unread: 0 }
-
-    setConversations(conversations.map((conv) => (conv.id === conversation.id ? readConversation : conv)))
-    setSelectedConversation(readConversation)
-    setIsChatOpen(true)
-  }
-
-  const handleClearConversation = () => {
-    if (!selectedConversation) return
-
-    setConversations(
-      conversations.map((conv) => (conv.id === selectedConversation.id ? { ...conv, messages: [] } : conv)),
-    )
-    setSelectedConversation({ ...selectedConversation, messages: [] })
-    setIsOptionsOpen(false)
-    addNotification("Conversation cleared", "success")
-  }
-
-  const totalUnread = conversations.reduce((sum, conv) => sum + conv.unread, 0)
+  const totalUnread = conversations.reduce((sum, conv) => sum + conv.unreadCount.vendor, 0)
 
   return (
     <div className="p-6 md:p-8 space-y-6">
@@ -250,31 +223,38 @@ export default function VendorMessagesPage() {
             </div>
           </div>
           <div className="flex-1 overflow-y-auto">
+            {isLoadingConversations && (
+              <p className="text-sm text-muted-foreground text-center py-6">Loading conversations…</p>
+            )}
+            {!isLoadingConversations && filteredConversations.length === 0 && (
+              <p className="text-sm text-muted-foreground text-center py-6">No conversations yet</p>
+            )}
             {filteredConversations.map((conv) => (
               <button
-                key={conv.id}
+                key={conv._id}
                 onClick={() => handleSelectConversation(conv)}
                 className={`w-full p-4 border-b border-border hover:bg-muted/50 transition-colors text-left ${
-                  selectedConversation?.id === conv.id ? "bg-muted" : ""
+                  selectedConversationId === conv._id ? "bg-muted" : ""
                 }`}
               >
                 <div className="flex items-start gap-3">
-                  <div className="relative">
-                    <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0">
-                      <span className="text-sm font-medium text-primary">{conv.customerAvatar}</span>
-                    </div>
-                    {conv.online && <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full" />}
+                  <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0">
+                    <span className="text-sm font-medium text-primary">{getCustomerInitials(conv)}</span>
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between mb-1">
-                      <p className="font-semibold truncate">{conv.customer}</p>
-                      <span className="text-xs text-muted-foreground">{conv.timestamp}</span>
+                      <p className="font-semibold truncate">{getCustomerLabel(conv)}</p>
+                      <span className="text-xs text-muted-foreground">
+                        {conv.lastMessage ? formatRelativeTime(conv.lastMessage.timestamp) : ""}
+                      </span>
                     </div>
-                    <p className="text-sm text-muted-foreground truncate">{conv.lastMessage}</p>
+                    <p className="text-sm text-muted-foreground truncate">
+                      {conv.lastMessage?.text ?? "Start a conversation"}
+                    </p>
                   </div>
-                  {conv.unread > 0 && (
+                  {conv.unreadCount.vendor > 0 && (
                     <div className="w-5 h-5 bg-primary text-primary-foreground rounded-full flex items-center justify-center text-xs font-medium flex-shrink-0">
-                      {conv.unread}
+                      {conv.unreadCount.vendor}
                     </div>
                   )}
                 </div>
@@ -295,18 +275,10 @@ export default function VendorMessagesPage() {
                 >
                   <span className="text-xl">←</span>
                 </button>
-                <div className="relative">
-                  <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center">
-                    <span className="text-sm font-medium text-primary">{selectedConversation.customerAvatar}</span>
-                  </div>
-                  {selectedConversation.online && (
-                    <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full" />
-                  )}
+                <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center">
+                  <span className="text-sm font-medium text-primary">{getCustomerInitials(selectedConversation)}</span>
                 </div>
-                <div>
-                  <p className="font-semibold">{selectedConversation.customer}</p>
-                  <p className="text-xs text-muted-foreground">{selectedConversation.online ? "Online" : "Offline"}</p>
-                </div>
+                <p className="font-semibold">{getCustomerLabel(selectedConversation)}</p>
               </div>
               <Button variant="ghost" size="sm" onClick={() => setIsOptionsOpen(true)}>
                 <span className="text-xl">⋮</span>
@@ -315,23 +287,31 @@ export default function VendorMessagesPage() {
 
             {/* Messages */}
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
-              {selectedConversation.messages.map((message) => (
+              {isLoadingMessages && <p className="text-center text-muted-foreground text-sm">Loading messages…</p>}
+              {!isLoadingMessages && messages.length === 0 && (
+                <div className="flex items-center justify-center h-full">
+                  <p className="text-muted-foreground text-sm">No messages yet. Send a quick reply to start.</p>
+                </div>
+              )}
+              {messages.map((message) => (
                 <div
-                  key={message.id}
-                  className={`flex ${message.sender === "vendor" ? "justify-end" : "justify-start"}`}
+                  key={message._id}
+                  className={`flex ${message.senderType === "vendor" ? "justify-end" : "justify-start"}`}
                 >
                   <div
                     className={`max-w-[70%] rounded-lg p-3 ${
-                      message.sender === "vendor" ? "bg-primary text-primary-foreground" : "bg-muted text-foreground"
+                      message.senderType === "vendor"
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-muted text-foreground"
                     }`}
                   >
-                    <p className="text-sm">{message.text}</p>
+                    <p className="text-sm">{message.content}</p>
                     <p
                       className={`text-xs mt-1 ${
-                        message.sender === "vendor" ? "text-primary-foreground/70" : "text-muted-foreground"
+                        message.senderType === "vendor" ? "text-primary-foreground/70" : "text-muted-foreground"
                       }`}
                     >
-                      {message.timestamp}
+                      {formatMessageTime(message.createdAt)}
                     </p>
                   </div>
                 </div>
@@ -344,14 +324,14 @@ export default function VendorMessagesPage() {
                 💬 Select a message to send:
               </p>
               <div className="grid grid-cols-2 gap-2">
-                {PREDEFINED_MESSAGES.map((message, index) => (
+                {predefinedMessages.map((message) => (
                   <Button
-                    key={index}
-                    onClick={() => handleSendMessage(message)}
+                    key={message._id}
+                    onClick={() => handleSendPredefined(message)}
                     variant="outline"
                     className="text-sm h-auto py-3 px-3 whitespace-normal text-left justify-start hover:bg-primary hover:text-primary-foreground hover:border-primary transition-all active:scale-95 font-medium shadow-sm"
                   >
-                    {message}
+                    {message.text}
                   </Button>
                 ))}
               </div>
@@ -379,9 +359,6 @@ export default function VendorMessagesPage() {
               }}
             >
               View customer profile
-            </Button>
-            <Button variant="outline" className="w-full justify-start" onClick={handleClearConversation}>
-              Clear conversation
             </Button>
           </div>
         </DialogContent>
