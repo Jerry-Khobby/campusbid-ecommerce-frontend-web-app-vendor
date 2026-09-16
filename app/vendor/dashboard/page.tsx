@@ -1,64 +1,92 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import Link from "next/link"
 import { Card } from "@/components/ui/card"
+import { useNotification } from "@/lib/notification-context"
+import { ApiError } from "@/lib/api/client"
+import { fetchDashboard } from "@/lib/api/dashboard"
+import type { VendorDashboard } from "@/lib/api/types"
 
-const stats = [
-  {
-    name: "Total Revenue",
-    value: "$12,450",
-    change: "+12.5%",
-    icon: "💰",
-    trend: "up",
-  },
-  {
-    name: "Total Orders",
-    value: "156",
-    change: "+8.2%",
-    icon: "🛒",
-    trend: "up",
-  },
-  {
-    name: "Active Products",
-    value: "24",
-    change: "+2",
-    icon: "📦",
-    trend: "up",
-  },
-  {
-    name: "Pending Bids",
-    value: "18",
-    change: "+5",
-    icon: "⚡",
-    trend: "up",
-  },
-]
+function getErrorMessage(error: unknown): string {
+  return error instanceof ApiError ? error.message : "Something went wrong. Please try again."
+}
 
-const recentOrders = [
-  {
-    id: "ORD-001",
-    customer: "John Doe",
-    product: "Coffee & Pastry",
-    amount: "$12.99",
-    status: "Preparing",
-  },
-  {
-    id: "ORD-002",
-    customer: "Jane Smith",
-    product: "Sandwich Combo",
-    amount: "$15.50",
-    status: "Ready",
-  },
-  {
-    id: "ORD-003",
-    customer: "Mike Johnson",
-    product: "Protein Shake",
-    amount: "$8.99",
-    status: "Delivered",
-  },
-]
+function formatStatus(status: string): string {
+  return status
+    .split("_")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ")
+}
+
+function getStatusColor(status: string): string {
+  switch (status) {
+    case "completed":
+    case "delivered":
+      return "bg-green-100 text-green-700"
+    case "ready":
+    case "out_for_delivery":
+      return "bg-blue-100 text-blue-700"
+    case "cancelled":
+    case "refunded":
+      return "bg-red-100 text-red-700"
+    default:
+      return "bg-yellow-100 text-yellow-700"
+  }
+}
+
+function getCustomerName(customer: { email: string; profile?: { firstName?: string; lastName?: string } }): string {
+  const name = [customer.profile?.firstName, customer.profile?.lastName].filter(Boolean).join(" ")
+  return name || customer.email
+}
 
 export default function VendorDashboardPage() {
+  const { addNotification } = useNotification()
+  const [dashboard, setDashboard] = useState<VendorDashboard | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+
+  useEffect(() => {
+    let isCancelled = false
+
+    fetchDashboard()
+      .then((data) => {
+        if (!isCancelled) setDashboard(data)
+      })
+      .catch((error) => {
+        if (!isCancelled) addNotification(getErrorMessage(error), "error")
+      })
+      .finally(() => {
+        if (!isCancelled) setIsLoading(false)
+      })
+
+    return () => {
+      isCancelled = true
+    }
+  }, [addNotification])
+
+  if (isLoading) {
+    return (
+      <div className="p-6 md:p-8">
+        <p className="text-sm text-muted-foreground">Loading dashboard...</p>
+      </div>
+    )
+  }
+
+  if (!dashboard) {
+    return (
+      <div className="p-6 md:p-8">
+        <p className="text-sm text-red-600">Couldn&apos;t load the dashboard. Try refreshing the page.</p>
+      </div>
+    )
+  }
+
+  const statCards = [
+    { name: "Total Revenue", value: `$${dashboard.stats.allTime.revenue.toLocaleString()}`, icon: "💰" },
+    { name: "Total Orders", value: dashboard.stats.allTime.orders.toLocaleString(), icon: "🛒" },
+    { name: "Active Products", value: dashboard.activeListings.toString(), icon: "📦" },
+    { name: "Active Flash Sales", value: dashboard.activeFlashSales.toString(), icon: "⚡" },
+  ]
+
   return (
     <div className="p-6 md:p-8 space-y-8">
       <div>
@@ -67,15 +95,10 @@ export default function VendorDashboardPage() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {stats.map((stat) => (
+        {statCards.map((stat) => (
           <Card key={stat.name} className="p-6">
-            <div className="flex items-center justify-between mb-4">
-              <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center text-2xl">
-                {stat.icon}
-              </div>
-              <span className={`text-sm font-medium ${stat.trend === "up" ? "text-green-600" : "text-red-600"}`}>
-                {stat.change}
-              </span>
+            <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center text-2xl mb-4">
+              {stat.icon}
             </div>
             <h3 className="text-2xl font-bold mb-1">{stat.value}</h3>
             <p className="text-sm text-muted-foreground">{stat.name}</p>
@@ -83,33 +106,43 @@ export default function VendorDashboardPage() {
         ))}
       </div>
 
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <Card className="p-6">
+          <p className="text-sm text-muted-foreground mb-1">Pending Orders</p>
+          <p className="text-2xl font-bold">{dashboard.pendingOrders}</p>
+        </Card>
+        <Card className="p-6">
+          <p className="text-sm text-muted-foreground mb-1">Available Balance</p>
+          <p className="text-2xl font-bold">${dashboard.availableBalance.toLocaleString()}</p>
+          <p className="text-xs text-muted-foreground mt-1">
+            ${dashboard.pendingBalance.toLocaleString()} pending payout hold
+          </p>
+        </Card>
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card className="p-6">
           <h2 className="text-xl font-semibold mb-4">Recent Orders</h2>
-          <div className="space-y-4">
-            {recentOrders.map((order) => (
-              <div key={order.id} className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
-                <div>
-                  <p className="font-medium">{order.customer}</p>
-                  <p className="text-sm text-muted-foreground">{order.product}</p>
+          {dashboard.recentOrders.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No orders yet.</p>
+          ) : (
+            <div className="space-y-4">
+              {dashboard.recentOrders.map((order) => (
+                <div key={order.orderNumber} className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
+                  <div>
+                    <p className="font-medium">{getCustomerName(order.customer)}</p>
+                    <p className="text-sm text-muted-foreground">{order.orderNumber}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-semibold">${order.total.toFixed(2)}</p>
+                    <span className={`text-xs px-2 py-1 rounded-full ${getStatusColor(order.status)}`}>
+                      {formatStatus(order.status)}
+                    </span>
+                  </div>
                 </div>
-                <div className="text-right">
-                  <p className="font-semibold">{order.amount}</p>
-                  <span
-                    className={`text-xs px-2 py-1 rounded-full ${
-                      order.status === "Delivered"
-                        ? "bg-green-100 text-green-700"
-                        : order.status === "Ready"
-                          ? "bg-blue-100 text-blue-700"
-                          : "bg-yellow-100 text-yellow-700"
-                    }`}
-                  >
-                    {order.status}
-                  </span>
-                </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </Card>
 
         <Card className="p-6">
