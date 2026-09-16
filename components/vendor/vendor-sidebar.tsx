@@ -22,8 +22,8 @@ export function VendorSidebar() {
   const router = useRouter()
   const { addNotification } = useNotification()
 
-  const handleLogout = () => {
-    logout()
+  const handleLogout = async () => {
+    await logout()
     addNotification("Logged out successfully", "success")
     router.push("/vendor/login")
   }

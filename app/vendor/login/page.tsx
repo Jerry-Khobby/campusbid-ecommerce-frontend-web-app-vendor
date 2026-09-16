@@ -10,14 +10,19 @@ import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { useUser } from "@/lib/user-context";
 import { useNotification } from "@/lib/notification-context";
+import { ApiError } from "@/lib/api/client";
 import Link from "next/link";
+
+function getErrorMessage(error: unknown): string {
+  return error instanceof ApiError ? error.message : "Something went wrong. Please try again.";
+}
 
 export default function VendorLoginPage() {
   const router = useRouter();
-  const { login } = useUser();
+  const { login, register } = useUser();
   const { addNotification } = useNotification();
   const [isLogin, setIsLogin] = useState(true);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
     email: "",
     password: "",
@@ -29,27 +34,31 @@ export default function VendorLoginPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsLoading(true);
+    setIsSubmitting(true);
 
-    setTimeout(() => {
-      login(
-        formData.email,
-        formData.password,
-        isLogin
-          ? formData.email.split("@")[0] || "Vendor"
-          : formData.businessName || "Vendor"
-      );
+    try {
+      if (isLogin) {
+        await login(formData.email, formData.password);
+        addNotification("Logged in successfully!", "success");
+      } else {
+        await register({
+          email: formData.email,
+          password: formData.password,
+          businessName: formData.businessName,
+          phoneNumber: formData.phone,
+        });
+        addNotification(
+          "Account created! An admin needs to approve your storefront before it's publicly visible.",
+          "success",
+        );
+      }
 
-      addNotification(
-        isLogin ? "Logged in successfully!" : "Account created successfully!",
-        "success"
-      );
-
-      const redirectTo = searchParams.get("redirect") || "/vendor/dashboard";
-
-      router.push(redirectTo);
-      setIsLoading(false);
-    }, 1000);
+      router.push(searchParams.get("redirect") || "/vendor/dashboard");
+    } catch (error) {
+      addNotification(getErrorMessage(error), "error");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -149,8 +158,8 @@ export default function VendorLoginPage() {
             )}
           </div>
 
-          <Button type="submit" className="w-full" disabled={isLoading}>
-            {isLoading
+          <Button type="submit" className="w-full" disabled={isSubmitting}>
+            {isSubmitting
               ? "Processing..."
               : isLogin
               ? "Sign In"

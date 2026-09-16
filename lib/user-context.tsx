@@ -2,56 +2,34 @@
 
 import type React from "react";
 import { createContext, useContext, useEffect, useState } from "react";
+import { loginVendor, logoutVendor, registerVendor, type RegisterInput } from "./api/auth";
+import type { SafeVendor } from "./api/types";
 
 export interface User {
   id: string;
-  name: string;
   email: string;
-  phone: string;
-  avatar: string;
-  profileImage?: string;
-  joinDate: string;
-  userType: "buyer" | "vendor";
-  stats: {
-    orders: number;
-    bidsWon: number;
-    rating: number;
-  };
-  savedItems: number[];
+  name: string; // the vendor's business name — displayed in the sidebar
 }
 
 interface UserContextType {
   user: User | null;
-  setUser: React.Dispatch<React.SetStateAction<User | null>>;
   isLoggedIn: boolean;
   isLoading: boolean;
-  login: (email: string, password: string, name: string) => void;
-  logout: () => void;
-  updateProfile: (updates: Partial<User>) => void;
-  toggleSaveItem: (itemId: number) => void;
-  updateProfileImage: (imageUrl: string) => void;
+  login: (email: string, password: string) => Promise<void>;
+  register: (input: RegisterInput) => Promise<void>;
+  logout: () => Promise<void>;
+  /** Lets Settings refresh the sidebar's display name after a successful business-info save,
+   * without needing a full profile refetch just to update one cached field. */
+  setDisplayName: (name: string) => void;
 }
 
 const UserContext = createContext<UserContextType | undefined>(undefined);
 
 const STORAGE_KEY = "campusbid-vendor-user";
 
-const defaultUser: User = {
-  id: "user-001",
-  name: "Alex Student",
-  email: "alex@university.edu",
-  phone: "+1 (555) 123-4567",
-  avatar: "AS",
-  profileImage: undefined,
-  joinDate: "January 2024",
-  userType: "buyer",
-  stats: {
-    orders: 12,
-    bidsWon: 8,
-    rating: 4.8,
-  },
-  savedItems: [],
-};
+function toUser(vendor: SafeVendor): User {
+  return { id: vendor._id, email: vendor.email, name: vendor.profile.businessName };
+}
 
 function readStoredUser(): User | null {
   try {
@@ -74,73 +52,46 @@ function writeStoredUser(user: User | null): void {
 
 export function UserProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const storedUser = readStoredUser();
-    if (storedUser) {
-      setUser(storedUser);
-      setIsLoggedIn(true);
-    }
+    setUser(readStoredUser());
     setIsLoading(false);
   }, []);
 
-  const login = (email: string, password: string, name: string) => {
-    if (email && password && name) {
-      const nextUser = { ...defaultUser, email, name };
-      setUser(nextUser);
-      setIsLoggedIn(true);
-      writeStoredUser(nextUser);
+  const login = async (email: string, password: string) => {
+    const { vendor } = await loginVendor({ email, password });
+    const nextUser = toUser(vendor);
+    setUser(nextUser);
+    writeStoredUser(nextUser);
+  };
+
+  const register = async (input: RegisterInput) => {
+    const { vendor } = await registerVendor(input);
+    const nextUser = toUser(vendor);
+    setUser(nextUser);
+    writeStoredUser(nextUser);
+  };
+
+  const logout = async () => {
+    try {
+      await logoutVendor();
+    } finally {
+      setUser(null);
+      writeStoredUser(null);
     }
   };
 
-  const logout = () => {
-    setUser(null);
-    setIsLoggedIn(false);
-    writeStoredUser(null);
-  };
-
-  const updateProfile = (updates: Partial<User>) => {
-    if (user) {
-      const nextUser = { ...user, ...updates };
-      setUser(nextUser);
-      writeStoredUser(nextUser);
-    }
-  };
-
-  const toggleSaveItem = (itemId: number) => {
-    if (user) {
-      const savedItems = user.savedItems.includes(itemId)
-        ? user.savedItems.filter((id) => id !== itemId)
-        : [...user.savedItems, itemId];
-      const nextUser = { ...user, savedItems };
-      setUser(nextUser);
-      writeStoredUser(nextUser);
-    }
-  };
-
-  const updateProfileImage = (imageUrl: string) => {
-    if (user) {
-      const nextUser = { ...user, profileImage: imageUrl };
-      setUser(nextUser);
-      writeStoredUser(nextUser);
-    }
+  const setDisplayName = (name: string) => {
+    if (!user) return;
+    const nextUser = { ...user, name };
+    setUser(nextUser);
+    writeStoredUser(nextUser);
   };
 
   return (
     <UserContext.Provider
-      value={{
-        user,
-        setUser,
-        isLoggedIn,
-        isLoading,
-        login,
-        logout,
-        updateProfile,
-        toggleSaveItem,
-        updateProfileImage,
-      }}
+      value={{ user, isLoggedIn: user !== null, isLoading, login, register, logout, setDisplayName }}
     >
       {children}
     </UserContext.Provider>
