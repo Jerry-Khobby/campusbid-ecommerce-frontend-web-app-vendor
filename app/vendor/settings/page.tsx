@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -20,20 +20,27 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { ApiError } from "@/lib/api/client"
+import { changePassword, fetchProfile, updateBankDetails, updateProfile, uploadLogo } from "@/lib/api/profile"
+import type { SafeVendor } from "@/lib/api/types"
+
+function getErrorMessage(error: unknown): string {
+  return error instanceof ApiError ? error.message : "Something went wrong. Please try again."
+}
 
 export default function VendorSettingsPage() {
-  const { user, updateProfile } = useUser()
+  const { setDisplayName } = useUser()
   const { addNotification } = useNotification()
 
-  const [profileImage, setProfileImage] = useState<string>(user?.profileImage || "")
+  const [vendor, setVendor] = useState<SafeVendor | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [isUploadingLogo, setIsUploadingLogo] = useState(false)
 
   const [businessInfo, setBusinessInfo] = useState({
-    businessName: user?.name || "Campus Cafe",
-    email: user?.email || "vendor@campuscafe.com",
-    phone: user?.phone || "+1 (555) 123-4567",
-    description: "Fresh coffee and pastries daily",
-    address: "123 Campus Drive, Building A",
-    hours: "Mon-Fri: 7AM-8PM, Sat-Sun: 8AM-6PM",
+    businessName: "",
+    ownerName: "",
+    phoneNumber: "",
+    description: "",
   })
 
   const [notifications, setNotifications] = useState({
@@ -44,10 +51,10 @@ export default function VendorSettingsPage() {
     smsNotifications: true,
   })
 
-  const [paymentInfo, setPaymentInfo] = useState({
-    accountHolder: "Campus Cafe LLC",
-    accountNumber: "****1234",
-    routingNumber: "****5678",
+  const [bankDetails, setBankDetails] = useState({
+    accountName: "",
+    accountNumber: "",
+    bankName: "",
   })
 
   const [passwordForm, setPasswordForm] = useState({
@@ -57,39 +64,89 @@ export default function VendorSettingsPage() {
   })
 
   const [isDeactivateDialogOpen, setIsDeactivateDialogOpen] = useState(false)
+  const [isSavingBusiness, setIsSavingBusiness] = useState(false)
+  const [isSavingBank, setIsSavingBank] = useState(false)
+  const [isSavingPassword, setIsSavingPassword] = useState(false)
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  useEffect(() => {
+    let isCancelled = false
+
+    fetchProfile()
+      .then((data) => {
+        if (isCancelled) return
+        setVendor(data)
+        setBusinessInfo({
+          businessName: data.profile.businessName ?? "",
+          ownerName: data.profile.ownerName ?? "",
+          phoneNumber: data.profile.phoneNumber ?? "",
+          description: data.profile.description ?? "",
+        })
+        setBankDetails({
+          accountName: data.bankDetails.accountName ?? "",
+          accountNumber: data.bankDetails.accountNumber ?? "",
+          bankName: data.bankDetails.bankName ?? "",
+        })
+      })
+      .catch((error) => {
+        if (!isCancelled) addNotification(getErrorMessage(error), "error")
+      })
+      .finally(() => {
+        if (!isCancelled) setIsLoading(false)
+      })
+
+    return () => {
+      isCancelled = true
+    }
+  }, [addNotification])
+
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
-    if (file) {
-      const reader = new FileReader()
-      reader.onloadend = () => {
-        const result = reader.result as string
-        setProfileImage(result)
-        updateProfile({ profileImage: result })
-        addNotification("Profile picture updated successfully", "success")
-      }
-      reader.readAsDataURL(file)
+    if (!file) return
+
+    setIsUploadingLogo(true)
+    try {
+      const logoUrl = await uploadLogo(file)
+      setVendor((current) => (current ? { ...current, profile: { ...current.profile, logo: logoUrl } } : current))
+      addNotification("Logo updated successfully", "success")
+    } catch (error) {
+      addNotification(getErrorMessage(error), "error")
+    } finally {
+      setIsUploadingLogo(false)
     }
   }
 
-  const handleSaveBusinessInfo = () => {
-    updateProfile({
-      name: businessInfo.businessName,
-      email: businessInfo.email,
-      phone: businessInfo.phone,
-    })
-    addNotification("Business information updated successfully", "success")
+  const handleSaveBusinessInfo = async () => {
+    setIsSavingBusiness(true)
+    try {
+      const updated = await updateProfile(businessInfo)
+      setVendor(updated)
+      setDisplayName(updated.profile.businessName)
+      addNotification("Business information updated successfully", "success")
+    } catch (error) {
+      addNotification(getErrorMessage(error), "error")
+    } finally {
+      setIsSavingBusiness(false)
+    }
   }
 
   const handleSaveNotifications = () => {
     addNotification("Notification preferences updated", "success")
   }
 
-  const handleSavePayment = () => {
-    addNotification("Payment information updated", "success")
+  const handleSaveBankDetails = async () => {
+    setIsSavingBank(true)
+    try {
+      const updated = await updateBankDetails(bankDetails)
+      setVendor((current) => (current ? { ...current, bankDetails: updated } : current))
+      addNotification("Bank details updated successfully", "success")
+    } catch (error) {
+      addNotification(getErrorMessage(error), "error")
+    } finally {
+      setIsSavingBank(false)
+    }
   }
 
-  const handleUpdatePassword = () => {
+  const handleUpdatePassword = async () => {
     const { currentPassword, newPassword, confirmPassword } = passwordForm
 
     if (!currentPassword || !newPassword || !confirmPassword) {
@@ -102,13 +159,29 @@ export default function VendorSettingsPage() {
       return
     }
 
-    setPasswordForm({ currentPassword: "", newPassword: "", confirmPassword: "" })
-    addNotification("Password updated successfully", "success")
+    setIsSavingPassword(true)
+    try {
+      await changePassword(currentPassword, newPassword)
+      setPasswordForm({ currentPassword: "", newPassword: "", confirmPassword: "" })
+      addNotification("Password updated successfully", "success")
+    } catch (error) {
+      addNotification(getErrorMessage(error), "error")
+    } finally {
+      setIsSavingPassword(false)
+    }
   }
 
   const handleDeactivateAccount = () => {
     setIsDeactivateDialogOpen(false)
-    addNotification("Account deactivation requested", "success")
+    addNotification("Account deactivation isn't self-service yet — contact support to deactivate your storefront.", "info")
+  }
+
+  if (isLoading) {
+    return (
+      <div className="p-6 md:p-8">
+        <p className="text-sm text-muted-foreground">Loading settings...</p>
+      </div>
+    )
   }
 
   return (
@@ -122,7 +195,7 @@ export default function VendorSettingsPage() {
         <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="business">Business</TabsTrigger>
           <TabsTrigger value="notifications">Notifications</TabsTrigger>
-          <TabsTrigger value="payment">Payment</TabsTrigger>
+          <TabsTrigger value="bank">Bank Details</TabsTrigger>
           <TabsTrigger value="security">Security</TabsTrigger>
         </TabsList>
 
@@ -139,13 +212,13 @@ export default function VendorSettingsPage() {
 
             <div className="space-y-4">
               <div className="space-y-2">
-                <Label>Business Profile Picture</Label>
+                <Label>Business Logo</Label>
                 <div className="flex items-center gap-4">
                   <div className="relative">
-                    {profileImage ? (
+                    {vendor?.profile.logo ? (
                       <img
-                        src={profileImage || "/placeholder.svg"}
-                        alt="Profile"
+                        src={vendor.profile.logo}
+                        alt="Logo"
                         className="w-24 h-24 rounded-full object-cover border-2 border-border"
                       />
                     ) : (
@@ -156,14 +229,15 @@ export default function VendorSettingsPage() {
                   </div>
                   <div className="flex-1">
                     <Input
-                      id="profileImage"
+                      id="logo"
                       type="file"
                       accept="image/*"
-                      onChange={handleImageUpload}
+                      onChange={handleLogoUpload}
                       className="cursor-pointer"
+                      disabled={isUploadingLogo}
                     />
                     <p className="text-xs text-muted-foreground mt-2">
-                      Upload a square image (recommended: 400x400px). Max size: 5MB
+                      Upload a square image (recommended: 400x400px).
                     </p>
                   </div>
                 </div>
@@ -179,14 +253,19 @@ export default function VendorSettingsPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="email">Email</Label>
+                  <Label htmlFor="ownerName">Owner Name</Label>
                   <Input
-                    id="email"
-                    type="email"
-                    value={businessInfo.email}
-                    onChange={(e) => setBusinessInfo({ ...businessInfo, email: e.target.value })}
+                    id="ownerName"
+                    value={businessInfo.ownerName}
+                    onChange={(e) => setBusinessInfo({ ...businessInfo, ownerName: e.target.value })}
                   />
                 </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Email</Label>
+                <Input value={vendor?.email ?? ""} disabled />
+                <p className="text-xs text-muted-foreground">Email can&apos;t be changed here.</p>
               </div>
 
               <div className="space-y-2">
@@ -194,8 +273,8 @@ export default function VendorSettingsPage() {
                 <Input
                   id="phone"
                   type="tel"
-                  value={businessInfo.phone}
-                  onChange={(e) => setBusinessInfo({ ...businessInfo, phone: e.target.value })}
+                  value={businessInfo.phoneNumber}
+                  onChange={(e) => setBusinessInfo({ ...businessInfo, phoneNumber: e.target.value })}
                 />
               </div>
 
@@ -209,32 +288,8 @@ export default function VendorSettingsPage() {
                 />
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="address" className="flex items-center gap-2">
-                  <span>📍</span>
-                  Address
-                </Label>
-                <Input
-                  id="address"
-                  value={businessInfo.address}
-                  onChange={(e) => setBusinessInfo({ ...businessInfo, address: e.target.value })}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="hours" className="flex items-center gap-2">
-                  <span>🕐</span>
-                  Business Hours
-                </Label>
-                <Input
-                  id="hours"
-                  value={businessInfo.hours}
-                  onChange={(e) => setBusinessInfo({ ...businessInfo, hours: e.target.value })}
-                />
-              </div>
-
-              <Button onClick={handleSaveBusinessInfo} className="w-full md:w-auto">
-                Save Changes
+              <Button onClick={handleSaveBusinessInfo} className="w-full md:w-auto" disabled={isSavingBusiness}>
+                {isSavingBusiness ? "Saving..." : "Save Changes"}
               </Button>
             </div>
           </Card>
@@ -321,24 +376,24 @@ export default function VendorSettingsPage() {
           </Card>
         </TabsContent>
 
-        {/* Payment */}
-        <TabsContent value="payment" className="space-y-6">
+        {/* Bank Details */}
+        <TabsContent value="bank" className="space-y-6">
           <Card className="p-6">
             <div className="flex items-center gap-3 mb-6">
               <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center text-2xl">💳</div>
               <div>
-                <h2 className="text-xl font-semibold">Payment Information</h2>
-                <p className="text-sm text-muted-foreground">Manage your payout details</p>
+                <h2 className="text-xl font-semibold">Bank Details</h2>
+                <p className="text-sm text-muted-foreground">Manage your payout account</p>
               </div>
             </div>
 
             <div className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="accountHolder">Account Holder Name</Label>
+                <Label htmlFor="accountName">Account Holder Name</Label>
                 <Input
-                  id="accountHolder"
-                  value={paymentInfo.accountHolder}
-                  onChange={(e) => setPaymentInfo({ ...paymentInfo, accountHolder: e.target.value })}
+                  id="accountName"
+                  value={bankDetails.accountName}
+                  onChange={(e) => setBankDetails({ ...bankDetails, accountName: e.target.value })}
                 />
               </div>
 
@@ -347,30 +402,28 @@ export default function VendorSettingsPage() {
                   <Label htmlFor="accountNumber">Account Number</Label>
                   <Input
                     id="accountNumber"
-                    type="password"
-                    value={paymentInfo.accountNumber}
-                    onChange={(e) => setPaymentInfo({ ...paymentInfo, accountNumber: e.target.value })}
+                    value={bankDetails.accountNumber}
+                    onChange={(e) => setBankDetails({ ...bankDetails, accountNumber: e.target.value })}
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="routingNumber">Routing Number</Label>
+                  <Label htmlFor="bankName">Bank Name</Label>
                   <Input
-                    id="routingNumber"
-                    type="password"
-                    value={paymentInfo.routingNumber}
-                    onChange={(e) => setPaymentInfo({ ...paymentInfo, routingNumber: e.target.value })}
+                    id="bankName"
+                    value={bankDetails.bankName}
+                    onChange={(e) => setBankDetails({ ...bankDetails, bankName: e.target.value })}
                   />
                 </div>
               </div>
 
               <div className="bg-muted/50 p-4 rounded-lg">
                 <p className="text-sm text-muted-foreground">
-                  Your payment information is securely encrypted. Payouts are processed weekly on Fridays.
+                  Payouts are requested manually from your Dashboard once you have a released balance.
                 </p>
               </div>
 
-              <Button onClick={handleSavePayment} className="w-full md:w-auto">
-                Update Payment Info
+              <Button onClick={handleSaveBankDetails} className="w-full md:w-auto" disabled={isSavingBank}>
+                {isSavingBank ? "Saving..." : "Update Bank Details"}
               </Button>
             </div>
           </Card>
@@ -418,8 +471,8 @@ export default function VendorSettingsPage() {
                       onChange={(e) => setPasswordForm({ ...passwordForm, confirmPassword: e.target.value })}
                     />
                   </div>
-                  <Button className="w-full md:w-auto" onClick={handleUpdatePassword}>
-                    Update Password
+                  <Button className="w-full md:w-auto" onClick={handleUpdatePassword} disabled={isSavingPassword}>
+                    {isSavingPassword ? "Updating..." : "Update Password"}
                   </Button>
                 </div>
               </div>
@@ -431,7 +484,7 @@ export default function VendorSettingsPage() {
                     <p className="font-medium">Enable 2FA</p>
                     <p className="text-sm text-muted-foreground">Add an extra layer of security to your account</p>
                   </div>
-                  <Switch />
+                  <Switch onCheckedChange={() => addNotification("Two-factor authentication coming soon!", "info")} />
                 </div>
               </div>
 
