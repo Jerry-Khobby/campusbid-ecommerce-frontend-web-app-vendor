@@ -81,6 +81,10 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
   const logout = async () => {
     try {
       await logoutVendor();
+    } catch {
+      // The server call can fail (e.g. an already-expired access token) —
+      // the local session still clears below regardless, since that's what
+      // actually matters for "am I logged out" from the user's side.
     } finally {
       setUser(null);
       writeStoredUser(null);
