@@ -3,6 +3,8 @@
 import type React from "react";
 import { createContext, useContext, useEffect, useState } from "react";
 import { loginVendor, logoutVendor, registerVendor, type RegisterInput } from "./api/auth";
+import { fetchProfile } from "./api/profile";
+import { getAccessToken } from "./api/token-storage";
 import type { SafeVendor } from "./api/types";
 
 export interface User {
@@ -18,6 +20,9 @@ interface UserContextType {
   login: (email: string, password: string) => Promise<void>;
   register: (input: RegisterInput) => Promise<void>;
   logout: () => Promise<void>;
+  /** Hydrates the session from the backend when tokens exist but no login/register
+   * response is available to read the vendor from — used after Google OAuth. */
+  refetchUser: () => Promise<void>;
   /** Lets Settings refresh the sidebar's display name after a successful business-info save,
    * without needing a full profile refetch just to update one cached field. */
   setDisplayName: (name: string) => void;
@@ -82,6 +87,14 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const refetchUser = async () => {
+    if (!getAccessToken()) return;
+    const vendor = await fetchProfile();
+    const nextUser = toUser(vendor);
+    setUser(nextUser);
+    writeStoredUser(nextUser);
+  };
+
   const setDisplayName = (name: string) => {
     if (!user) return;
     const nextUser = { ...user, name };
@@ -91,7 +104,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <UserContext.Provider
-      value={{ user, isLoggedIn: user !== null, isLoading, login, register, logout, setDisplayName }}
+      value={{ user, isLoggedIn: user !== null, isLoading, login, register, logout, refetchUser, setDisplayName }}
     >
       {children}
     </UserContext.Provider>

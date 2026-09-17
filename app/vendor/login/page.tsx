@@ -184,9 +184,9 @@ export default function VendorLoginPage() {
               type="button"
               variant="outline"
               className="w-full bg-transparent"
-              onClick={() =>
-                addNotification("Google login coming soon!", "info")
-              }
+              onClick={() => {
+                window.location.href = `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/vendors/google`
+              }}
             >
               <svg className="w-5 h-5" viewBox="0 0 24 24">
                 <path
