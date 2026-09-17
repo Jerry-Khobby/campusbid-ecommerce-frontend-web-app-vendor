@@ -2,6 +2,7 @@
 
 import type React from "react"
 
+import Link from "next/link"
 import { useEffect, useState } from "react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -418,7 +419,11 @@ export default function VendorSettingsPage() {
 
               <div className="bg-muted/50 p-4 rounded-lg">
                 <p className="text-sm text-muted-foreground">
-                  Payouts are requested manually from your Dashboard once you have a released balance.
+                  Payouts are requested manually from the{" "}
+                  <Link href="/vendor/payouts" className="underline">
+                    Payouts page
+                  </Link>{" "}
+                  once you have an available balance.
                 </p>
               </div>
 

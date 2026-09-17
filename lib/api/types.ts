@@ -183,6 +183,33 @@ export interface VendorDashboard {
   }[]
 }
 
+export type PayoutStatus = "requested" | "processing" | "completed" | "failed"
+
+export interface Payout {
+  _id: string
+  vendorId: string
+  amount: number
+  status: PayoutStatus
+  requestedAt: string
+  completedAt?: string
+  failureReason?: string
+  createdAt: string
+}
+
+export interface HeldPayment {
+  _id: string
+  orderId: string | { _id: string; orderNumber: string }
+  amount: number
+  vendorPayout: number
+  holdStartTime?: string
+  createdAt: string
+}
+
+export interface HeldPaymentsResponse {
+  payments: HeldPayment[]
+  totalHeld: number
+}
+
 export interface SalesAnalytics {
   totalOrders: number
   completedOrders: number

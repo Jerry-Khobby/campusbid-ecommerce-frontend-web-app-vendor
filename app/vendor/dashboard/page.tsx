@@ -114,9 +114,12 @@ export default function VendorDashboardPage() {
         <Card className="p-6">
           <p className="text-sm text-muted-foreground mb-1">Available Balance</p>
           <p className="text-2xl font-bold">${dashboard.availableBalance.toLocaleString()}</p>
-          <p className="text-xs text-muted-foreground mt-1">
+          <p className="text-xs text-muted-foreground mt-1 mb-3">
             ${dashboard.pendingBalance.toLocaleString()} pending payout hold
           </p>
+          <Link href="/vendor/payouts" className="text-sm font-medium text-primary hover:underline">
+            Request a payout →
+          </Link>
         </Card>
       </div>
 
@@ -175,6 +178,13 @@ export default function VendorDashboardPage() {
             >
               <div className="text-2xl mb-2">💬</div>
               <p className="text-sm font-medium">Messages</p>
+            </Link>
+            <Link
+              href="/vendor/payouts"
+              className="block p-4 bg-muted hover:bg-muted/80 rounded-lg transition-colors"
+            >
+              <div className="text-2xl mb-2">💵</div>
+              <p className="text-sm font-medium">Payouts</p>
             </Link>
           </div>
         </Card>
