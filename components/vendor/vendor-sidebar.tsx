@@ -13,6 +13,8 @@ const navigation = [
   { name: "Orders", href: "/vendor/orders", icon: "🛒" },
   { name: "Bids", href: "/vendor/bids", icon: "⚡" },
   { name: "Messages", href: "/vendor/messages", icon: "💬" },
+  { name: "Analytics", href: "/vendor/analytics", icon: "📈" },
+  { name: "Payouts", href: "/vendor/payouts", icon: "💵" },
   { name: "Settings", href: "/vendor/settings", icon: "⚙️" },
 ]
 
