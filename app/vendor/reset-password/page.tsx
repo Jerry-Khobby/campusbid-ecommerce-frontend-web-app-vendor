@@ -7,24 +7,41 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useNotification } from "@/lib/notification-context"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
+import { resetPassword } from "@/lib/api/auth"
+import { ApiError } from "@/lib/api/client"
 
 export default function VendorResetPasswordPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const token = searchParams.get("token")
   const [password, setPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const { addNotification } = useNotification()
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (password && confirmPassword) {
-      if (password === confirmPassword) {
-        // UI only - no actual logic
-        addNotification("Password reset successfully!", "success")
-        router.push("/vendor/login")
-      } else {
-        addNotification("Passwords do not match", "error")
-      }
+    if (!password || !confirmPassword) return
+    if (password !== confirmPassword) {
+      addNotification("Passwords do not match", "error")
+      return
+    }
+    if (!token) {
+      addNotification("This reset link is invalid or has expired", "error")
+      return
+    }
+
+    setIsSubmitting(true)
+    try {
+      await resetPassword(token, password)
+      addNotification("Password reset successfully!", "success")
+      router.push("/vendor/login")
+    } catch (error) {
+      const message = error instanceof ApiError ? error.message : "Something went wrong, please try again"
+      addNotification(message, "error")
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -71,8 +88,8 @@ export default function VendorResetPasswordPage() {
             />
           </div>
 
-          <Button type="submit" className="w-full">
-            Reset Password
+          <Button type="submit" disabled={isSubmitting} className="w-full">
+            {isSubmitting ? "Resetting..." : "Reset Password"}
           </Button>
         </form>
 

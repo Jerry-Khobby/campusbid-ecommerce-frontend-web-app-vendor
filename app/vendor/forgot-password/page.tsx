@@ -7,19 +7,30 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useNotification } from "@/lib/notification-context";
+import { requestPasswordReset } from "@/lib/api/auth";
+import { ApiError } from "@/lib/api/client";
 import Link from "next/link";
 
 export default function VendorForgotPasswordPage() {
   const [email, setEmail] = useState("");
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const { addNotification } = useNotification();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (email) {
-      // UI only - no actual logic
+    if (!email) return;
+
+    setIsSubmitting(true);
+    try {
+      await requestPasswordReset(email);
       setIsSubmitted(true);
       addNotification("Password reset link sent to your email!", "success");
+    } catch (error) {
+      const message = error instanceof ApiError ? error.message : "Something went wrong, please try again";
+      addNotification(message, "error");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -61,8 +72,8 @@ export default function VendorForgotPasswordPage() {
               />
             </div>
 
-            <Button type="submit" className="w-full">
-              Send Reset Link
+            <Button type="submit" disabled={isSubmitting} className="w-full">
+              {isSubmitting ? "Sending..." : "Send Reset Link"}
             </Button>
           </form>
         ) : (
