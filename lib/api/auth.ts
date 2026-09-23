@@ -49,3 +49,11 @@ export async function logoutVendor(): Promise<void> {
     clearTokens()
   }
 }
+
+export async function requestPasswordReset(email: string): Promise<void> {
+  await apiFetch("/vendors/forgot-password", { method: "POST", body: { email }, auth: false })
+}
+
+export async function resetPassword(token: string, newPassword: string): Promise<void> {
+  await apiFetch("/vendors/reset-password", { method: "POST", body: { token, newPassword }, auth: false })
+}
