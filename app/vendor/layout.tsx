@@ -7,6 +7,11 @@ import { useRouter, usePathname } from "next/navigation";
 import { useUser } from "@/lib/user-context";
 import { VendorSidebar } from "@/components/vendor/vendor-sidebar";
 
+// Routes under /vendor/* that a logged-out visitor must be able to reach —
+// a password-reset email link is useless if the layout bounces it to login
+// before the reset form ever renders.
+const PUBLIC_VENDOR_ROUTES = ["/vendor/login", "/vendor/forgot-password", "/vendor/reset-password"];
+
 export default function VendorLayout({
   children,
 }: {
@@ -15,21 +20,22 @@ export default function VendorLayout({
   const { user, isLoading } = useUser();
   const router = useRouter();
   const pathname = usePathname();
+  const isPublicRoute = PUBLIC_VENDOR_ROUTES.includes(pathname);
 
   useEffect(() => {
     if (isLoading) return;
 
-    if (!user && pathname !== "/vendor/login") {
+    if (!user && !isPublicRoute) {
       const params = new URLSearchParams();
 
       params.set("redirect", pathname);
 
       router.push(`/vendor/login?${params.toString()}`);
     }
-  }, [user, isLoading, pathname, router]);
+  }, [user, isLoading, pathname, isPublicRoute, router]);
 
-  // Hide sidebar on login page
-  if (pathname === "/vendor/login") {
+  // Hide the sidebar on public, unauthenticated-facing pages
+  if (isPublicRoute) {
     return <>{children}</>;
   }
 
