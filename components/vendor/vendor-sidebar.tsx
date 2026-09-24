@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation"
 import { useUser } from "@/lib/user-context"
 import { useRouter } from "next/navigation"
 import { useNotification } from "@/lib/notification-context"
+import { NotificationBell } from "@/components/notification-bell"
 import { cn } from "@/lib/utils"
 
 const navigation = [
@@ -32,14 +33,15 @@ export function VendorSidebar() {
 
   return (
     <div className="flex flex-col h-full bg-card border-r border-border">
-      <div className="p-6 border-b border-border">
-        <Link href="/vendor/dashboard" className="flex items-center gap-2">
-          <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center text-lg">🏪</div>
-          <div>
-            <h1 className="text-lg font-bold">CampusBid</h1>
-            <p className="text-xs text-muted-foreground">Vendor Portal</p>
+      <div className="p-6 border-b border-border flex items-center justify-between gap-2">
+        <Link href="/vendor/dashboard" className="flex items-center gap-2 min-w-0">
+          <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center text-lg shrink-0">🏪</div>
+          <div className="min-w-0">
+            <h1 className="text-lg font-bold truncate">CampusBid</h1>
+            <p className="text-xs text-muted-foreground truncate">Vendor Portal</p>
           </div>
         </Link>
+        <NotificationBell />
       </div>
 
       <nav className="flex-1 p-4 space-y-1">
