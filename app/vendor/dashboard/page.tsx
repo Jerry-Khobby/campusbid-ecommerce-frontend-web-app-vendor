@@ -3,10 +3,33 @@
 import { useEffect, useState } from "react"
 import Link from "next/link"
 import { Card } from "@/components/ui/card"
+import {
+  BarChart2,
+  Clock,
+  DollarSign,
+  MessageCircle,
+  Package,
+  ShoppingCart,
+  Wallet,
+  Zap,
+} from "lucide-react"
+import {
+  Area,
+  ComposedChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts"
 import { useNotification } from "@/lib/notification-context"
 import { ApiError } from "@/lib/api/client"
-import { fetchDashboard } from "@/lib/api/dashboard"
-import type { VendorDashboard } from "@/lib/api/types"
+import { fetchDashboard, fetchSalesAnalytics } from "@/lib/api/dashboard"
+import type { VendorDashboard, SalesAnalytics } from "@/lib/api/types"
+import { KpiTile } from "@/components/dashboard/kpi-tile"
+import { LineAreaTooltip } from "@/components/dashboard/chart-tooltip"
+import { formatCompactNumber, formatCurrency } from "@/lib/format"
+import { CATEGORICAL, CHART_INK, ORDER_STATUS_COLORS } from "@/lib/chart-palette"
 
 function getErrorMessage(error: unknown): string {
   return error instanceof ApiError ? error.message : "Something went wrong. Please try again."
@@ -19,20 +42,8 @@ function formatStatus(status: string): string {
     .join(" ")
 }
 
-function getStatusColor(status: string): string {
-  switch (status) {
-    case "completed":
-    case "delivered":
-      return "bg-green-100 text-green-700"
-    case "ready":
-    case "out_for_delivery":
-      return "bg-blue-100 text-blue-700"
-    case "cancelled":
-    case "refunded":
-      return "bg-red-100 text-red-700"
-    default:
-      return "bg-yellow-100 text-yellow-700"
-  }
+function formatShortDate(dateString: string): string {
+  return new Date(dateString).toLocaleDateString(undefined, { weekday: "short" })
 }
 
 function getCustomerName(customer: { email: string; profile?: { firstName?: string; lastName?: string } }): string {
@@ -43,14 +54,17 @@ function getCustomerName(customer: { email: string; profile?: { firstName?: stri
 export default function VendorDashboardPage() {
   const { addNotification } = useNotification()
   const [dashboard, setDashboard] = useState<VendorDashboard | null>(null)
+  const [weekAnalytics, setWeekAnalytics] = useState<SalesAnalytics | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
     let isCancelled = false
 
-    fetchDashboard()
-      .then((data) => {
-        if (!isCancelled) setDashboard(data)
+    Promise.all([fetchDashboard(), fetchSalesAnalytics("week")])
+      .then(([dashboardData, salesData]) => {
+        if (isCancelled) return
+        setDashboard(dashboardData)
+        setWeekAnalytics(salesData)
       })
       .catch((error) => {
         if (!isCancelled) addNotification(getErrorMessage(error), "error")
@@ -80,48 +94,104 @@ export default function VendorDashboardPage() {
     )
   }
 
-  const statCards = [
-    { name: "Total Revenue", value: `$${dashboard.stats.allTime.revenue.toLocaleString()}`, icon: "💰" },
-    { name: "Total Orders", value: dashboard.stats.allTime.orders.toLocaleString(), icon: "🛒" },
-    { name: "Active Products", value: dashboard.activeListings.toString(), icon: "📦" },
-    { name: "Active Flash Sales", value: dashboard.activeFlashSales.toString(), icon: "⚡" },
-  ]
+  const revenueTrend = (weekAnalytics?.dailyBreakdown ?? []).map((point) => ({
+    date: formatShortDate(point._id),
+    revenue: point.revenue,
+    orders: point.orders,
+  }))
+  const revenueSparkline = (weekAnalytics?.dailyBreakdown ?? []).map((p) => p.revenue)
+  const ordersSparkline = (weekAnalytics?.dailyBreakdown ?? []).map((p) => p.orders)
 
   return (
     <div className="p-6 md:p-8 space-y-8">
       <div>
         <h1 className="text-3xl font-bold">Dashboard</h1>
-        <p className="text-muted-foreground mt-1">Welcome back! Here's what's happening with your store today.</p>
+        <p className="text-muted-foreground mt-1">Welcome back! Here&apos;s what&apos;s happening with your store today.</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {statCards.map((stat) => (
-          <Card key={stat.name} className="p-6">
-            <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center text-2xl mb-4">
-              {stat.icon}
-            </div>
-            <h3 className="text-2xl font-bold mb-1">{stat.value}</h3>
-            <p className="text-sm text-muted-foreground">{stat.name}</p>
-          </Card>
-        ))}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <KpiTile
+          label="Total Revenue"
+          value={formatCompactNumber(dashboard.stats.allTime.revenue, { currency: true })}
+          icon={DollarSign}
+          accentColor={CATEGORICAL.blue}
+          caption={`${formatCurrency(dashboard.stats.thisWeek.revenue)} this week`}
+          sparkline={revenueSparkline}
+        />
+        <KpiTile
+          label="Total Orders"
+          value={formatCompactNumber(dashboard.stats.allTime.orders)}
+          icon={ShoppingCart}
+          accentColor={CATEGORICAL.orange}
+          caption={`${dashboard.stats.thisWeek.orders} this week`}
+          sparkline={ordersSparkline}
+        />
+        <KpiTile
+          label="Active Products"
+          value={formatCompactNumber(dashboard.activeListings)}
+          icon={Package}
+          accentColor={CATEGORICAL.aqua}
+          link={{ href: "/vendor/products", label: "Manage products →" }}
+        />
+        <KpiTile
+          label="Active Flash Sales"
+          value={formatCompactNumber(dashboard.activeFlashSales)}
+          icon={Zap}
+          accentColor={CATEGORICAL.yellow}
+          link={{ href: "/vendor/bids", label: "Review bids →" }}
+        />
+        <KpiTile
+          label="Pending Orders"
+          value={formatCompactNumber(dashboard.pendingOrders)}
+          icon={Clock}
+          accentColor={CATEGORICAL.magenta}
+          link={{ href: "/vendor/orders", label: "View orders →" }}
+        />
+        <KpiTile
+          label="Available Balance"
+          value={formatCompactNumber(dashboard.availableBalance, { currency: true })}
+          icon={Wallet}
+          accentColor={CATEGORICAL.violet}
+          caption={`${formatCurrency(dashboard.pendingBalance)} pending hold`}
+          link={{ href: "/vendor/payouts", label: "Request a payout →" }}
+        />
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      {revenueTrend.length > 0 && (
         <Card className="p-6">
-          <p className="text-sm text-muted-foreground mb-1">Pending Orders</p>
-          <p className="text-2xl font-bold">{dashboard.pendingOrders}</p>
+          <div className="flex items-center gap-2 mb-1">
+            <BarChart2 size={18} className="text-muted-foreground" />
+            <h2 className="text-lg font-semibold">Revenue - Last 7 Days</h2>
+          </div>
+          <ResponsiveContainer width="100%" height={240}>
+            <ComposedChart data={revenueTrend}>
+              <defs>
+                <linearGradient id="colorVendorRevenue" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor={CATEGORICAL.blue} stopOpacity={0.18} />
+                  <stop offset="95%" stopColor={CATEGORICAL.blue} stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke={CHART_INK.gridline} vertical={false} />
+              <XAxis dataKey="date" stroke={CHART_INK.muted} tickLine={false} axisLine={{ stroke: CHART_INK.baseline }} />
+              <YAxis stroke={CHART_INK.muted} tickLine={false} axisLine={false} tickFormatter={(v) => formatCompactNumber(v, { currency: true })} />
+              <Tooltip
+                cursor={{ stroke: CHART_INK.baseline, strokeDasharray: "3 3" }}
+                content={<LineAreaTooltip formatValue={(v, dataKey) => (dataKey === "revenue" ? formatCurrency(v) : v.toLocaleString())} />}
+              />
+              <Area
+                type="monotone"
+                dataKey="revenue"
+                name="Revenue"
+                stroke={CATEGORICAL.blue}
+                strokeWidth={2}
+                fill="url(#colorVendorRevenue)"
+                dot={{ r: 3, fill: CATEGORICAL.blue, strokeWidth: 0 }}
+                activeDot={{ r: 5 }}
+              />
+            </ComposedChart>
+          </ResponsiveContainer>
         </Card>
-        <Card className="p-6">
-          <p className="text-sm text-muted-foreground mb-1">Available Balance</p>
-          <p className="text-2xl font-bold">${dashboard.availableBalance.toLocaleString()}</p>
-          <p className="text-xs text-muted-foreground mt-1 mb-3">
-            ${dashboard.pendingBalance.toLocaleString()} pending payout hold
-          </p>
-          <Link href="/vendor/payouts" className="text-sm font-medium text-primary hover:underline">
-            Request a payout →
-          </Link>
-        </Card>
-      </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card className="p-6">
@@ -130,20 +200,26 @@ export default function VendorDashboardPage() {
             <p className="text-sm text-muted-foreground">No orders yet.</p>
           ) : (
             <div className="space-y-4">
-              {dashboard.recentOrders.map((order) => (
-                <div key={order.orderNumber} className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
-                  <div>
-                    <p className="font-medium">{getCustomerName(order.customer)}</p>
-                    <p className="text-sm text-muted-foreground">{order.orderNumber}</p>
+              {dashboard.recentOrders.map((order) => {
+                const statusColor = ORDER_STATUS_COLORS[order.status] ?? CHART_INK.muted
+                return (
+                  <div key={order.orderNumber} className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
+                    <div>
+                      <p className="font-medium">{getCustomerName(order.customer)}</p>
+                      <p className="text-sm text-muted-foreground">{order.orderNumber}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-semibold">${order.total.toFixed(2)}</p>
+                      <span
+                        className="text-xs px-2 py-1 rounded-full"
+                        style={{ backgroundColor: `${statusColor}20`, color: statusColor }}
+                      >
+                        {formatStatus(order.status)}
+                      </span>
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <p className="font-semibold">${order.total.toFixed(2)}</p>
-                    <span className={`text-xs px-2 py-1 rounded-full ${getStatusColor(order.status)}`}>
-                      {formatStatus(order.status)}
-                    </span>
-                  </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           )}
         </Card>
@@ -155,35 +231,35 @@ export default function VendorDashboardPage() {
               href="/vendor/products"
               className="block p-4 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"
             >
-              <div className="text-2xl mb-2">📦</div>
+              <Package size={22} className="mb-2" />
               <p className="text-sm font-medium">Add Product</p>
             </Link>
             <Link
               href="/vendor/orders"
               className="block p-4 bg-muted hover:bg-muted/80 rounded-lg transition-colors"
             >
-              <div className="text-2xl mb-2">🛒</div>
+              <ShoppingCart size={22} className="mb-2 text-muted-foreground" />
               <p className="text-sm font-medium">View Orders</p>
             </Link>
             <Link
               href="/vendor/bids"
               className="block p-4 bg-muted hover:bg-muted/80 rounded-lg transition-colors"
             >
-              <div className="text-2xl mb-2">⚡</div>
+              <Zap size={22} className="mb-2 text-muted-foreground" />
               <p className="text-sm font-medium">Review Bids</p>
             </Link>
             <Link
               href="/vendor/messages"
               className="block p-4 bg-muted hover:bg-muted/80 rounded-lg transition-colors"
             >
-              <div className="text-2xl mb-2">💬</div>
+              <MessageCircle size={22} className="mb-2 text-muted-foreground" />
               <p className="text-sm font-medium">Messages</p>
             </Link>
             <Link
               href="/vendor/payouts"
               className="block p-4 bg-muted hover:bg-muted/80 rounded-lg transition-colors"
             >
-              <div className="text-2xl mb-2">💵</div>
+              <Wallet size={22} className="mb-2 text-muted-foreground" />
               <p className="text-sm font-medium">Payouts</p>
             </Link>
           </div>

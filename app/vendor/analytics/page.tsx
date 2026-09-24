@@ -3,13 +3,30 @@
 import { useEffect, useState } from "react"
 import { Card } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import {
+  Bar,
+  CartesianGrid,
+  ComposedChart,
+  Line,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts"
 import { useNotification } from "@/lib/notification-context"
 import { ApiError } from "@/lib/api/client"
 import { fetchProductAnalytics, fetchSalesAnalytics } from "@/lib/api/dashboard"
 import type { ProductAnalyticsItem, SalesAnalytics } from "@/lib/api/types"
+import { LineAreaTooltip } from "@/components/dashboard/chart-tooltip"
+import { formatCompactNumber, formatCurrency } from "@/lib/format"
+import { CATEGORICAL, CHART_INK } from "@/lib/chart-palette"
 
 function getErrorMessage(error: unknown): string {
   return error instanceof ApiError ? error.message : "Something went wrong. Please try again."
+}
+
+function formatChartDate(dateString: string): string {
+  return new Date(dateString).toLocaleDateString(undefined, { month: "short", day: "numeric" })
 }
 
 type Period = "today" | "week" | "month" | "year"
@@ -49,6 +66,12 @@ export default function VendorAnalyticsPage() {
       isCancelled = true
     }
   }, [period, addNotification])
+
+  const dailyChartData = (sales?.dailyBreakdown ?? []).map((point) => ({
+    date: formatChartDate(point._id),
+    revenue: point.revenue,
+    orders: point.orders,
+  }))
 
   const statCards = sales
     ? [
@@ -96,6 +119,45 @@ export default function VendorAnalyticsPage() {
               </Card>
             ))}
           </div>
+
+          {sales && sales.dailyBreakdown.length > 0 && (
+            <Card className="p-6">
+              <h2 className="text-xl font-semibold mb-4">Revenue & Orders Over Time</h2>
+              <ResponsiveContainer width="100%" height={280}>
+                <ComposedChart data={dailyChartData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke={CHART_INK.gridline} vertical={false} />
+                  <XAxis dataKey="date" stroke={CHART_INK.muted} tickLine={false} axisLine={{ stroke: CHART_INK.baseline }} />
+                  <YAxis
+                    yAxisId="revenue"
+                    stroke={CHART_INK.muted}
+                    tickLine={false}
+                    axisLine={false}
+                    tickFormatter={(v) => formatCompactNumber(v, { currency: true })}
+                  />
+                  <YAxis yAxisId="orders" orientation="right" hide />
+                  <Tooltip
+                    cursor={{ stroke: CHART_INK.baseline, strokeDasharray: "3 3" }}
+                    content={
+                      <LineAreaTooltip
+                        formatValue={(v, dataKey) => (dataKey === "revenue" ? formatCurrency(v) : v.toLocaleString())}
+                      />
+                    }
+                  />
+                  <Bar yAxisId="orders" dataKey="orders" name="Orders" fill={CATEGORICAL.orange} radius={[4, 4, 0, 0]} maxBarSize={24} />
+                  <Line
+                    yAxisId="revenue"
+                    type="monotone"
+                    dataKey="revenue"
+                    name="Revenue"
+                    stroke={CATEGORICAL.blue}
+                    strokeWidth={2}
+                    dot={{ r: 3, fill: CATEGORICAL.blue, strokeWidth: 0 }}
+                    activeDot={{ r: 5 }}
+                  />
+                </ComposedChart>
+              </ResponsiveContainer>
+            </Card>
+          )}
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <Card className="p-6">
