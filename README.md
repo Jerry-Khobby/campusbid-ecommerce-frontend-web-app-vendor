@@ -1,36 +1,55 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# CampusBid — Vendor App
 
-## Getting Started
+The self-service portal for campus vendors: register a shop, manage products and stock, handle incoming orders, run flash sales, message customers, and track payouts — backed by the [CampusBid backend](../campus-bid-backend-web-app).
 
-First, run the development server:
+## Tech stack
+
+Next.js 16 (App Router) · React 19 · TypeScript · Tailwind CSS v4 · Radix UI primitives · Recharts · Socket.IO client
+
+Like the admin app (and unlike the customer app), this one has **no TanStack Query** — data fetching is plain `useEffect`/`useState` per page. It does use Socket.IO, for chat (`lib/socket/chat-socket.ts`) and for real-time notification toasts (`components/notifications-socket-bridge.tsx`).
+
+## Getting started
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+cp .env.local.example .env.local   # point NEXT_PUBLIC_API_BASE_URL at your backend
+npm run dev                        # http://localhost:5002
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Vendors **do** self-register through this app (`/vendor/login`'s sign-up toggle → `POST /vendors/register`) — unlike admin. A newly registered vendor lands with `isActive: false` and needs approval from the admin app before showing up in the customer-facing marketplace, though the vendor can still sign in and use the dashboard while pending.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+npm run lint    # eslint
+npm run build   # production build
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+**No test suite exists in this app yet.** The customer app has a Vitest + Testing Library setup you can lift wholesale if you want to add one here — see its `vitest.config.mts`/`vitest.setup.ts` and `lib/api/__tests__/`, `components/pages/__tests__/` for the pattern.
 
-## Learn More
+## App structure
 
-To learn more about Next.js, take a look at the following resources:
+Routes live under `app/vendor/*`; `app/vendor/layout.tsx` renders the sidebar (`components/vendor/vendor-sidebar.tsx`) and redirects to `/vendor/login` for anyone without a session, except for a small allowlist of public routes (login, forgot/reset password) that must stay reachable from an email link even when logged out.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+| Route | Purpose |
+| --- | --- |
+| `/vendor/dashboard` | Revenue/orders KPIs with sparklines, 7-day revenue chart, recent orders |
+| `/vendor/products` | Product CRUD, stock, availability, images |
+| `/vendor/orders` | Accept/reject/progress orders through their real backend statuses |
+| `/vendor/bids` | Flash sales: live bid history/current leader, complete or cancel a sale (there is no per-bid accept/reject — the backend only supports closing the whole sale) |
+| `/vendor/messages` | Buyer↔vendor chat |
+| `/vendor/analytics` | Sales/product analytics over a selectable period |
+| `/vendor/payouts` | Pending/available balance, payout requests |
+| `/vendor/settings` | Business info, bank details, password |
+| `/vendor/login`, `/vendor/forgot-password`, `/vendor/reset-password`, `/auth/google` | Auth (email/password + Google OAuth) |
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+`lib/api/*.ts` is one file per backend resource (`orders.ts`, `products.ts`, `flash-sales.ts`, `payouts.ts`, etc.) — each a thin `apiFetch` wrapper, no query-library hooks (see the stack note above).
 
-## Deploy on Vercel
+## Conventions worth knowing before changing things
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+- **Auth**: JWT access + refresh tokens in `lib/api/token-storage.ts` (`localStorage`); `lib/api/client.ts`'s `apiFetch` retries once on a 401 via refresh, then clears tokens. Same shape as the other two apps.
+- **Chat is predefined-messages-only by design** in most flows, but the customer app added free-text messaging — if you add it here too, keep the vendor side's `senderType: "vendor"` distinction intact, since the backend's chat schema and gateway are role-agnostic and only the payload's `senderType` distinguishes the two.
+- **The vendor "coming soon" stubs are known, not bugs**: the Settings page's 2FA toggle and "View Sessions" have no backend concept behind them yet, and the Messages page's "View customer profile" also has no backend support (the chat controller never populates a customer's profile onto a conversation). All three need real backend work before they can be wired up, not just a frontend fix.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Known gaps
+
+- No automated tests, as noted above — this is the highest-value gap to close next if you're hardening this app before hosting it.
+- If you're auditing before production, also check the backend's own README for two vendor-relevant known issues: vendor Google OAuth returning an empty response body on the backend, and the chat WebSocket gateway accepting connections without authentication.
