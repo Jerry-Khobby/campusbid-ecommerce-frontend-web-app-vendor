@@ -1,12 +1,20 @@
 "use client"
 
-import { useEffect } from "react"
+import { Suspense, useEffect } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { setTokens } from "@/lib/api/token-storage"
 import { useUser } from "@/lib/user-context"
 import { useNotification } from "@/lib/notification-context"
 
 export default function GoogleCallbackPage() {
+  return (
+    <Suspense fallback={null}>
+      <GoogleCallbackHandler />
+    </Suspense>
+  )
+}
+
+function GoogleCallbackHandler() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { refetchUser } = useUser()

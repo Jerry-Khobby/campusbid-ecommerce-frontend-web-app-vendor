@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useState } from "react"
+import { Suspense, useState } from "react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -12,6 +12,14 @@ import { resetPassword } from "@/lib/api/auth"
 import { ApiError } from "@/lib/api/client"
 
 export default function VendorResetPasswordPage() {
+  return (
+    <Suspense fallback={null}>
+      <VendorResetPasswordPageInner />
+    </Suspense>
+  )
+}
+
+function VendorResetPasswordPageInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const token = searchParams.get("token")

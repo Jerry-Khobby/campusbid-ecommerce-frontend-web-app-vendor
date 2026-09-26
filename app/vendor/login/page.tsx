@@ -2,7 +2,7 @@
 
 import type React from "react";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,6 +18,14 @@ function getErrorMessage(error: unknown): string {
 }
 
 export default function VendorLoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <VendorLoginPageInner />
+    </Suspense>
+  );
+}
+
+function VendorLoginPageInner() {
   const router = useRouter();
   const { login, register } = useUser();
   const { addNotification } = useNotification();
