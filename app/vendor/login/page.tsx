@@ -2,7 +2,7 @@
 
 import type React from "react";
 
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,7 +27,7 @@ export default function VendorLoginPage() {
 
 function VendorLoginPageInner() {
   const router = useRouter();
-  const { login, register } = useUser();
+  const { login, register, isLoggedIn, isLoading } = useUser();
   const { addNotification } = useNotification();
   const [isLogin, setIsLogin] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -39,6 +39,13 @@ function VendorLoginPageInner() {
   });
 
   const searchParams = useSearchParams();
+  const redirectTo = searchParams.get("redirect") || "/vendor/dashboard";
+
+  useEffect(() => {
+    if (!isLoading && isLoggedIn) {
+      router.replace(redirectTo);
+    }
+  }, [isLoading, isLoggedIn, redirectTo, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -61,13 +68,17 @@ function VendorLoginPageInner() {
         );
       }
 
-      router.push(searchParams.get("redirect") || "/vendor/dashboard");
+      router.push(redirectTo);
     } catch (error) {
       addNotification(getErrorMessage(error), "error");
     } finally {
       setIsSubmitting(false);
     }
   };
+
+  if (isLoading || isLoggedIn) {
+    return null;
+  }
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
