@@ -78,8 +78,8 @@ export default function VendorAnalyticsPage() {
         { name: "Total Orders", value: sales.totalOrders.toLocaleString(), icon: "🛒" },
         { name: "Completed", value: sales.completedOrders.toLocaleString(), icon: "✅" },
         { name: "Cancelled", value: sales.cancelledOrders.toLocaleString(), icon: "❌" },
-        { name: "Total Revenue", value: `$${sales.totalRevenue.toLocaleString()}`, icon: "💰" },
-        { name: "Avg. Order Value", value: `$${sales.averageOrderValue.toFixed(2)}`, icon: "📊" },
+        { name: "Total Revenue", value: formatCurrency(sales.totalRevenue), icon: "💰" },
+        { name: "Avg. Order Value", value: formatCurrency(sales.averageOrderValue), icon: "📊" },
       ]
     : []
 
@@ -175,7 +175,7 @@ export default function VendorAnalyticsPage() {
                         <p className="font-medium">{product.name}</p>
                         <p className="text-xs text-muted-foreground">{product.unitsSold} sold</p>
                       </div>
-                      <p className="font-semibold">${product.revenue.toFixed(2)}</p>
+                      <p className="font-semibold">{formatCurrency(product.revenue)}</p>
                     </div>
                   ))}
                 </div>

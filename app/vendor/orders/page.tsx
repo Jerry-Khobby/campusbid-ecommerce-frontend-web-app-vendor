@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { ApiError } from "@/lib/api/client"
 import { acceptOrder, fetchVendorOrders, markOrderDelivered, rejectOrder, updateOrderStatus } from "@/lib/api/orders"
+import { formatCurrency } from "@/lib/format"
 import type { Order, OrderStatus } from "@/lib/api/types"
 
 const STATUS_OPTIONS: OrderStatus[] = [
@@ -241,7 +242,7 @@ export default function VendorOrdersPage() {
                     </div>
                     <p className="text-sm text-muted-foreground">{new Date(order.createdAt).toLocaleString()}</p>
                   </div>
-                  <p className="text-xl font-bold text-primary">${order.pricing.total.toFixed(2)}</p>
+                  <p className="text-xl font-bold text-primary">{formatCurrency(order.pricing.total)}</p>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>

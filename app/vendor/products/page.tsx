@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ApiError } from "@/lib/api/client"
+import { formatCurrency } from "@/lib/format"
 import { fetchCategories, type Category } from "@/lib/api/categories"
 import {
   createProduct,
@@ -75,7 +76,7 @@ export default function VendorProductsPage() {
 
   const handleAddProduct = async () => {
     if (!newProduct.name.trim() || newProduct.price <= 0) {
-      addNotification("Enter a product name and a price greater than $0", "error")
+      addNotification("Enter a product name and a price greater than ₵0", "error")
       return
     }
 
@@ -103,7 +104,7 @@ export default function VendorProductsPage() {
     if (!editingProduct) return
 
     if (!editingProduct.name.trim() || editingProduct.price <= 0) {
-      addNotification("Enter a product name and a price greater than $0", "error")
+      addNotification("Enter a product name and a price greater than ₵0", "error")
       return
     }
 
@@ -277,7 +278,7 @@ export default function VendorProductsPage() {
                   <div className="grid grid-cols-3 gap-4 text-sm">
                     <div>
                       <p className="text-muted-foreground">Price</p>
-                      <p className="font-semibold">${product.price.toFixed(2)}</p>
+                      <p className="font-semibold">{formatCurrency(product.price)}</p>
                     </div>
                     <div>
                       <p className="text-muted-foreground">Stock</p>

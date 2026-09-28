@@ -9,6 +9,7 @@ import { ApiError } from "@/lib/api/client"
 import { fetchDashboard } from "@/lib/api/dashboard"
 import { fetchHeldPayments, fetchPayouts, requestPayout } from "@/lib/api/payouts"
 import type { HeldPayment, Payout, VendorDashboard } from "@/lib/api/types"
+import { formatCurrency } from "@/lib/format"
 
 function getErrorMessage(error: unknown): string {
   return error instanceof ApiError ? error.message : "Something went wrong. Please try again."
@@ -101,7 +102,7 @@ export default function VendorPayoutsPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <Card className="p-6">
           <p className="text-sm text-muted-foreground mb-1">Available Balance</p>
-          <p className="text-3xl font-bold mb-4">${availableBalance.toLocaleString()}</p>
+          <p className="text-3xl font-bold mb-4">{formatCurrency(availableBalance)}</p>
           <Button onClick={() => setIsConfirmOpen(true)} disabled={availableBalance <= 0} className="w-full">
             Request Payout
           </Button>
@@ -112,7 +113,7 @@ export default function VendorPayoutsPage() {
 
         <Card className="p-6">
           <p className="text-sm text-muted-foreground mb-1">Pending Balance</p>
-          <p className="text-3xl font-bold mb-4">${(dashboard?.pendingBalance ?? 0).toLocaleString()}</p>
+          <p className="text-3xl font-bold mb-4">{formatCurrency(dashboard?.pendingBalance ?? 0)}</p>
           <p className="text-xs text-muted-foreground">
             Held from orders not yet confirmed delivered — becomes available once released.
           </p>
@@ -133,7 +134,7 @@ export default function VendorPayoutsPage() {
                     {payment.holdStartTime ? new Date(payment.holdStartTime).toLocaleDateString() : ""}
                   </p>
                 </div>
-                <p className="font-semibold">${payment.vendorPayout.toFixed(2)}</p>
+                <p className="font-semibold">{formatCurrency(payment.vendorPayout)}</p>
               </div>
             ))}
           </div>
@@ -149,7 +150,7 @@ export default function VendorPayoutsPage() {
             {payouts.map((payout) => (
               <div key={payout._id} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
                 <div>
-                  <p className="font-medium">${payout.amount.toFixed(2)}</p>
+                  <p className="font-medium">{formatCurrency(payout.amount)}</p>
                   <p className="text-xs text-muted-foreground">
                     {new Date(payout.requestedAt).toLocaleDateString()}
                   </p>
@@ -170,7 +171,7 @@ export default function VendorPayoutsPage() {
           </DialogHeader>
           <div className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              This requests a payout of your full available balance, ${availableBalance.toLocaleString()}, to your
+              This requests a payout of your full available balance, {formatCurrency(availableBalance)}, to your
               bank details on file.
             </p>
             <Button onClick={handleRequestPayout} disabled={isRequesting} className="w-full">

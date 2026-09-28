@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { OptimizedImage } from "@/components/optimized-image";
 import { useNotification } from "@/lib/notification-context";
 import { ApiError } from "@/lib/api/client";
+import { formatCurrency } from "@/lib/format";
 import { cancelFlashSale, completeFlashSale, fetchVendorFlashSales } from "@/lib/api/flash-sales";
 import type { FlashSale } from "@/lib/api/types";
 
@@ -164,7 +165,7 @@ export default function VendorBidsPage() {
             <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center text-xl">📈</div>
             <div>
               <p className="text-sm text-muted-foreground">Total Current Bid Value</p>
-              <p className="text-2xl font-bold">${totalBidValue.toFixed(2)}</p>
+              <p className="text-2xl font-bold">{formatCurrency(totalBidValue)}</p>
             </div>
           </div>
         </Card>
@@ -217,9 +218,9 @@ export default function VendorBidsPage() {
                       <p className="font-medium text-foreground">{getProductName(sale)}</p>
                     </div>
                     <div className="text-right">
-                      <p className="text-sm text-muted-foreground line-through">${sale.originalPrice.toFixed(2)}</p>
+                      <p className="text-sm text-muted-foreground line-through">{formatCurrency(sale.originalPrice)}</p>
                       <p className="text-2xl font-bold text-primary">
-                        ${(sale.currentBid ?? sale.startingBid).toFixed(2)}
+                        {formatCurrency(sale.currentBid ?? sale.startingBid)}
                       </p>
                     </div>
                   </div>
