@@ -22,8 +22,11 @@ export async function rejectOrder(id: string, reason: string): Promise<Order> {
   return json.data
 }
 
-export async function markOrderDelivered(id: string): Promise<Order> {
-  const json = await apiFetch<{ data: Order }>(`/orders/${id}/mark-delivered`, { method: "PATCH" })
+export async function markOrderDelivered(id: string, deliveryCode: string): Promise<Order> {
+  const json = await apiFetch<{ data: Order }>(`/orders/${id}/mark-delivered`, {
+    method: "PATCH",
+    body: { deliveryCode },
+  })
   return json.data
 }
 

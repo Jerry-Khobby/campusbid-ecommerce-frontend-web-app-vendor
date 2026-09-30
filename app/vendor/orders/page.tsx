@@ -73,6 +73,8 @@ export default function VendorOrdersPage() {
   const [prepMinutes, setPrepMinutes] = useState("15")
   const [rejectingOrder, setRejectingOrder] = useState<Order | null>(null)
   const [rejectReason, setRejectReason] = useState("")
+  const [deliveringOrder, setDeliveringOrder] = useState<Order | null>(null)
+  const [deliveryCodeInput, setDeliveryCodeInput] = useState("")
 
   useEffect(() => {
     let isCancelled = false
@@ -153,9 +155,30 @@ export default function VendorOrdersPage() {
   const handleAdvanceStatus = async (order: Order, status: OrderStatus) => {
     setPendingActionId(order._id)
     try {
-      const updated = status === "delivered" ? await markOrderDelivered(order._id) : await updateOrderStatus(order._id, status)
+      const updated = await updateOrderStatus(order._id, status)
       applyUpdatedOrder(updated)
       addNotification(`Order updated to ${formatStatus(status)}`, "success")
+    } catch (error) {
+      addNotification(getErrorMessage(error), "error")
+    } finally {
+      setPendingActionId(null)
+    }
+  }
+
+  const handleMarkDelivered = async () => {
+    if (!deliveringOrder) return
+    if (deliveryCodeInput.trim().length !== 4) {
+      addNotification("Ask the customer for their 4-digit delivery code", "error")
+      return
+    }
+
+    setPendingActionId(deliveringOrder._id)
+    try {
+      const updated = await markOrderDelivered(deliveringOrder._id, deliveryCodeInput.trim())
+      applyUpdatedOrder(updated)
+      addNotification("Order marked as delivered", "success")
+      setDeliveringOrder(null)
+      setDeliveryCodeInput("")
     } catch (error) {
       addNotification(getErrorMessage(error), "error")
     } finally {
@@ -296,7 +319,7 @@ export default function VendorOrdersPage() {
                     </Button>
                   )}
                   {order.status === "out_for_delivery" && (
-                    <Button size="sm" disabled={pendingActionId === order._id} onClick={() => handleAdvanceStatus(order, "delivered")}>
+                    <Button size="sm" disabled={pendingActionId === order._id} onClick={() => setDeliveringOrder(order)}>
                       Mark Delivered
                     </Button>
                   )}
@@ -358,6 +381,42 @@ export default function VendorOrdersPage() {
               disabled={pendingActionId === rejectingOrder?._id}
             >
               Confirm Reject
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={!!deliveringOrder}
+        onOpenChange={(open) => {
+          if (!open) {
+            setDeliveringOrder(null)
+            setDeliveryCodeInput("")
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Mark Order {deliveringOrder?.orderNumber} Delivered</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="delivery-code">Delivery code</Label>
+              <Input
+                id="delivery-code"
+                inputMode="numeric"
+                maxLength={4}
+                value={deliveryCodeInput}
+                onChange={(e) => setDeliveryCodeInput(e.target.value.replace(/\D/g, ""))}
+                placeholder="Ask the customer for their 4-digit code"
+              />
+            </div>
+            <Button
+              onClick={handleMarkDelivered}
+              className="w-full"
+              disabled={pendingActionId === deliveringOrder?._id}
+            >
+              Confirm Delivered
             </Button>
           </div>
         </DialogContent>
