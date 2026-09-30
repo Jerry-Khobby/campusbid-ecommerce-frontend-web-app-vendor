@@ -29,17 +29,17 @@ function VendorLoginPageInner() {
   const router = useRouter();
   const { login, register, isLoggedIn, isLoading } = useUser();
   const { addNotification } = useNotification();
-  const [isLogin, setIsLogin] = useState(true);
+  const searchParams = useSearchParams();
+  const redirectTo = searchParams.get("redirect") || "/vendor/dashboard";
+
+  const [isLogin, setIsLogin] = useState(searchParams.get("mode") !== "signup");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
-    email: "",
+    email: searchParams.get("email") || "",
     password: "",
     businessName: "",
     phone: "",
   });
-
-  const searchParams = useSearchParams();
-  const redirectTo = searchParams.get("redirect") || "/vendor/dashboard";
 
   useEffect(() => {
     if (!isLoading && isLoggedIn) {

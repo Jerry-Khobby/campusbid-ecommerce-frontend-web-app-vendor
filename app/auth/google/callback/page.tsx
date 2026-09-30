@@ -24,7 +24,10 @@ function GoogleCallbackHandler() {
     const error = searchParams.get("error")
     if (error) {
       addNotification(error, "error")
-      router.replace("/vendor/login")
+      const email = searchParams.get("email")
+      const params = new URLSearchParams({ mode: "signup" })
+      if (email) params.set("email", email)
+      router.replace(`/vendor/login?${params.toString()}`)
       return
     }
 
