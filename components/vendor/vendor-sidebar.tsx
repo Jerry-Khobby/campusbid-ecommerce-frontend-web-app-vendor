@@ -44,7 +44,7 @@ export function VendorSidebar() {
         <NotificationBell />
       </div>
 
-      <nav className="flex-1 p-4 space-y-1">
+      <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
         {navigation.map((item) => {
           const isActive = pathname === item.href
           return (

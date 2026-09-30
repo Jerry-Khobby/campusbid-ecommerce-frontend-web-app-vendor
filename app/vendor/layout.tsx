@@ -6,6 +6,7 @@ import { useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useUser } from "@/lib/user-context";
 import { VendorSidebar } from "@/components/vendor/vendor-sidebar";
+import { VendorMobileNav } from "@/components/vendor/vendor-mobile-nav";
 
 // Routes under /vendor/* that a logged-out visitor must be able to reach —
 // a password-reset email link is useless if the layout bounces it to login
@@ -50,11 +51,12 @@ export default function VendorLayout({
   }
 
   return (
-    <div className="flex h-screen overflow-hidden">
+    <div className="flex h-screen flex-col overflow-hidden md:flex-row">
+      <VendorMobileNav />
       <aside className="w-64 flex-shrink-0 hidden md:block">
         <VendorSidebar />
       </aside>
-      <main className="flex-1 overflow-y-auto bg-background">{children}</main>
+      <main className="min-w-0 flex-1 overflow-y-auto bg-background">{children}</main>
     </div>
   );
 }
