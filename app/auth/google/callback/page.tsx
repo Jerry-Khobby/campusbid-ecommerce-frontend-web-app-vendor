@@ -21,6 +21,13 @@ function GoogleCallbackHandler() {
   const { addNotification } = useNotification()
 
   useEffect(() => {
+    const error = searchParams.get("error")
+    if (error) {
+      addNotification(error, "error")
+      router.replace("/vendor/login")
+      return
+    }
+
     const accessToken = searchParams.get("accessToken")
     const refreshToken = searchParams.get("refreshToken")
 
