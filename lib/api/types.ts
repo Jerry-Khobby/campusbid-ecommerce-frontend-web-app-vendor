@@ -25,10 +25,15 @@ export interface BusinessHour {
   isClosed?: boolean
 }
 
+export type MomoProvider = "mtn" | "vod" | "atl"
+
 export interface BankDetails {
   accountName?: string
+  // Doubles as the mobile money number when momoProvider is set - payouts
+  // are sent via mobile money, the same way customer payments are collected.
   accountNumber?: string
   bankName?: string
+  momoProvider?: MomoProvider
   isVerified?: boolean
 }
 

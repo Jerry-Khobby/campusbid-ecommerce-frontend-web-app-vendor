@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Switch } from "@/components/ui/switch"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useUser } from "@/lib/user-context"
 import { useNotification } from "@/lib/notification-context"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -23,7 +24,13 @@ import {
 } from "@/components/ui/dialog"
 import { ApiError } from "@/lib/api/client"
 import { changePassword, fetchProfile, updateBankDetails, updateProfile, uploadLogo } from "@/lib/api/profile"
-import type { SafeVendor } from "@/lib/api/types"
+import type { MomoProvider, SafeVendor } from "@/lib/api/types"
+
+const MOMO_PROVIDER_OPTIONS: { value: MomoProvider; label: string }[] = [
+  { value: "mtn", label: "MTN Mobile Money" },
+  { value: "vod", label: "Telecel Cash" },
+  { value: "atl", label: "AirtelTigo Money" },
+]
 
 function getErrorMessage(error: unknown): string {
   return error instanceof ApiError ? error.message : "Something went wrong. Please try again."
@@ -52,10 +59,14 @@ export default function VendorSettingsPage() {
     smsNotifications: true,
   })
 
-  const [bankDetails, setBankDetails] = useState({
+  const [bankDetails, setBankDetails] = useState<{
+    accountName: string
+    accountNumber: string
+    momoProvider: MomoProvider | ""
+  }>({
     accountName: "",
     accountNumber: "",
-    bankName: "",
+    momoProvider: "",
   })
 
   const [passwordForm, setPasswordForm] = useState({
@@ -85,7 +96,7 @@ export default function VendorSettingsPage() {
         setBankDetails({
           accountName: data.bankDetails.accountName ?? "",
           accountNumber: data.bankDetails.accountNumber ?? "",
-          bankName: data.bankDetails.bankName ?? "",
+          momoProvider: data.bankDetails.momoProvider ?? "",
         })
       })
       .catch((error) => {
@@ -135,11 +146,19 @@ export default function VendorSettingsPage() {
   }
 
   const handleSaveBankDetails = async () => {
+    if (bankDetails.accountNumber && !/^0\d{9}$/.test(bankDetails.accountNumber)) {
+      addNotification("Enter a valid mobile money number, e.g. 0551234567", "error")
+      return
+    }
+
     setIsSavingBank(true)
     try {
-      const updated = await updateBankDetails(bankDetails)
+      const updated = await updateBankDetails({
+        ...bankDetails,
+        momoProvider: bankDetails.momoProvider || undefined,
+      })
       setVendor((current) => (current ? { ...current, bankDetails: updated } : current))
-      addNotification("Bank details updated successfully", "success")
+      addNotification("Payout details updated successfully", "success")
     } catch (error) {
       addNotification(getErrorMessage(error), "error")
     } finally {
@@ -383,8 +402,10 @@ export default function VendorSettingsPage() {
             <div className="flex items-center gap-3 mb-6">
               <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center text-2xl">💳</div>
               <div>
-                <h2 className="text-xl font-semibold">Bank Details</h2>
-                <p className="text-sm text-muted-foreground">Manage your payout account</p>
+                <h2 className="text-xl font-semibold">Payout Details</h2>
+                <p className="text-sm text-muted-foreground">
+                  Where approved payouts are sent, via mobile money
+                </p>
               </div>
             </div>
 
@@ -395,24 +416,37 @@ export default function VendorSettingsPage() {
                   id="accountName"
                   value={bankDetails.accountName}
                   onChange={(e) => setBankDetails({ ...bankDetails, accountName: e.target.value })}
+                  placeholder="Name registered on the mobile money account"
                 />
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="accountNumber">Account Number</Label>
+                  <Label htmlFor="momoProvider">Network</Label>
+                  <Select
+                    value={bankDetails.momoProvider}
+                    onValueChange={(value) => setBankDetails({ ...bankDetails, momoProvider: value as MomoProvider })}
+                  >
+                    <SelectTrigger id="momoProvider">
+                      <SelectValue placeholder="Select network" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {MOMO_PROVIDER_OPTIONS.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="accountNumber">Mobile Money Number</Label>
                   <Input
                     id="accountNumber"
                     value={bankDetails.accountNumber}
                     onChange={(e) => setBankDetails({ ...bankDetails, accountNumber: e.target.value })}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="bankName">Bank Name</Label>
-                  <Input
-                    id="bankName"
-                    value={bankDetails.bankName}
-                    onChange={(e) => setBankDetails({ ...bankDetails, bankName: e.target.value })}
+                    placeholder="0551234567"
+                    inputMode="tel"
                   />
                 </div>
               </div>
@@ -423,12 +457,12 @@ export default function VendorSettingsPage() {
                   <Link href="/vendor/payouts" className="underline">
                     Payouts page
                   </Link>{" "}
-                  once you have an available balance.
+                  once you have an available balance. An admin reviews and sends each payout to this number.
                 </p>
               </div>
 
               <Button onClick={handleSaveBankDetails} className="w-full md:w-auto" disabled={isSavingBank}>
-                {isSavingBank ? "Saving..." : "Update Bank Details"}
+                {isSavingBank ? "Saving..." : "Update Payout Details"}
               </Button>
             </div>
           </Card>
