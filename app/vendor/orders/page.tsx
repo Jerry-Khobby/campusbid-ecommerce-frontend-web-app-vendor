@@ -25,6 +25,15 @@ const STATUS_OPTIONS: OrderStatus[] = [
   "refunded",
 ]
 
+// New orders get 6-digit codes; orders created before codes were lengthened
+// still carry 4-digit ones, which the backend keeps accepting.
+const DELIVERY_CODE_LENGTH = 6
+const LEGACY_DELIVERY_CODE_LENGTH = 4
+
+function isDeliveryCodeComplete(code: string): boolean {
+  return code.length === DELIVERY_CODE_LENGTH || code.length === LEGACY_DELIVERY_CODE_LENGTH
+}
+
 function getErrorMessage(error: unknown): string {
   return error instanceof ApiError ? error.message : "Something went wrong. Please try again."
 }
@@ -167,8 +176,8 @@ export default function VendorOrdersPage() {
 
   const handleMarkDelivered = async () => {
     if (!deliveringOrder) return
-    if (deliveryCodeInput.trim().length !== 4) {
-      addNotification("Ask the customer for their 4-digit delivery code", "error")
+    if (!isDeliveryCodeComplete(deliveryCodeInput.trim())) {
+      addNotification("Ask the customer for their delivery code (6 digits)", "error")
       return
     }
 
@@ -405,10 +414,10 @@ export default function VendorOrdersPage() {
               <Input
                 id="delivery-code"
                 inputMode="numeric"
-                maxLength={4}
+                maxLength={DELIVERY_CODE_LENGTH}
                 value={deliveryCodeInput}
                 onChange={(e) => setDeliveryCodeInput(e.target.value.replace(/\D/g, ""))}
-                placeholder="Ask the customer for their 4-digit code"
+                placeholder="Ask the customer for their 6-digit code"
               />
             </div>
             <Button
