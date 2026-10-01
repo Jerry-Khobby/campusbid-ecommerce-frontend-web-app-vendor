@@ -139,9 +139,6 @@ export default function VendorMessagesPage() {
     if (!selectedConversationId) return
     let isCancelled = false
 
-    setMessages([])
-    setIsLoadingMessages(true)
-
     fetchMessages(selectedConversationId)
       .then((data) => {
         if (!isCancelled) setMessages([...data].reverse())
@@ -165,6 +162,11 @@ export default function VendorMessagesPage() {
   )
 
   const handleSelectConversation = (conversation: Conversation) => {
+    // Re-selecting the open conversation doesn't refetch, so only reset then.
+    if (conversation._id !== selectedConversationId) {
+      setMessages([])
+      setIsLoadingMessages(true)
+    }
     setSelectedConversationId(conversation._id)
     setIsChatOpen(true)
     setConversations((current) =>

@@ -45,9 +45,13 @@ export default function VendorAnalyticsPage() {
   const [products, setProducts] = useState<ProductAnalyticsItem[]>([])
   const [isLoading, setIsLoading] = useState(true)
 
+  const changePeriod = (nextPeriod: Period) => {
+    setIsLoading(true)
+    setPeriod(nextPeriod)
+  }
+
   useEffect(() => {
     let isCancelled = false
-    setIsLoading(true)
 
     Promise.all([fetchSalesAnalytics(period), fetchProductAnalytics()])
       .then(([salesData, productsData]) => {
@@ -90,7 +94,7 @@ export default function VendorAnalyticsPage() {
           <h1 className="text-3xl font-bold">Analytics</h1>
           <p className="text-muted-foreground mt-1">Sales and product performance</p>
         </div>
-        <Select value={period} onValueChange={(value) => setPeriod(value as Period)}>
+        <Select value={period} onValueChange={(value) => changePeriod(value as Period)}>
           <SelectTrigger className="w-44">
             <SelectValue />
           </SelectTrigger>

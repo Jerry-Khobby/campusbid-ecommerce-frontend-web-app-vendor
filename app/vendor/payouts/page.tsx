@@ -65,7 +65,6 @@ export default function VendorPayoutsPage() {
     return () => {
       isCancelled = true
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [addNotification])
 
   const handleRequestPayout = async () => {
