@@ -55,6 +55,7 @@ function VendorLoginPageInner() {
       if (isLogin) {
         await login(formData.email, formData.password);
         addNotification("Logged in successfully!", "success");
+        router.push(redirectTo);
       } else {
         await register({
           email: formData.email,
@@ -63,12 +64,12 @@ function VendorLoginPageInner() {
           phoneNumber: formData.phone,
         });
         addNotification(
-          "Account created! An admin needs to approve your storefront before it's publicly visible.",
+          "Account created! An admin needs to approve your storefront before you can sign in.",
           "success",
         );
+        setIsLogin(true);
+        setFormData((current) => ({ ...current, password: "" }));
       }
-
-      router.push(redirectTo);
     } catch (error) {
       addNotification(getErrorMessage(error), "error");
     } finally {

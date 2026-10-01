@@ -71,11 +71,10 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     writeStoredUser(nextUser);
   };
 
+  // Registration does not sign the vendor in: the account stays pending until
+  // an admin approves it, and only then can the vendor log in.
   const register = async (input: RegisterInput) => {
-    const { vendor } = await registerVendor(input);
-    const nextUser = toUser(vendor);
-    setUser(nextUser);
-    writeStoredUser(nextUser);
+    await registerVendor(input);
   };
 
   const logout = async () => {

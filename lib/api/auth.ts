@@ -8,6 +8,11 @@ interface AuthResult {
   refreshToken: string
 }
 
+// A new vendor starts pending admin approval, so registration issues no tokens.
+interface RegisterResult {
+  vendor: SafeVendor
+}
+
 export interface LoginInput {
   email: string
   password: string
@@ -20,16 +25,14 @@ export interface RegisterInput {
   phoneNumber: string
 }
 
-export async function registerVendor(input: RegisterInput): Promise<AuthResult> {
+export async function registerVendor(input: RegisterInput): Promise<RegisterResult> {
   const formData = new FormData()
   formData.append("email", input.email)
   formData.append("password", input.password)
   formData.append("profile[businessName]", input.businessName)
   formData.append("profile[phoneNumber]", input.phoneNumber)
 
-  const json = await apiUpload<AuthResult>("/vendors/register", formData)
-  setTokens(json.accessToken, json.refreshToken)
-  return json
+  return apiUpload<RegisterResult>("/vendors/register", formData)
 }
 
 export async function loginVendor(input: LoginInput): Promise<AuthResult> {
