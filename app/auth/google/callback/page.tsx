@@ -24,10 +24,11 @@ function GoogleCallbackHandler() {
     const error = searchParams.get("error")
     if (error) {
       addNotification(error, "error")
+      // The backend only includes the email for an account it doesn't know yet;
+      // any other refusal (pending approval, suspended) belongs on sign-in.
       const email = searchParams.get("email")
-      const params = new URLSearchParams({ mode: "signup" })
-      if (email) params.set("email", email)
-      router.replace(`/vendor/login?${params.toString()}`)
+      const params = email ? `?${new URLSearchParams({ mode: "signup", email }).toString()}` : ""
+      router.replace(`/vendor/login${params}`)
       return
     }
 
