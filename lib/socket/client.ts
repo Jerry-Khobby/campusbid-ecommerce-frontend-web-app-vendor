@@ -11,7 +11,11 @@ export type SocketNamespace = "/chat" | "/notifications"
  * WebSocket namespaces, only to its Express-routed REST controllers.
  */
 export function createSocket(namespace: SocketNamespace, options?: { withAuth?: boolean }): Socket {
-  const auth = options?.withAuth ? { token: getAccessToken() ?? undefined } : undefined
+  // A callback, not a snapshot: socket.io re-runs it on every reconnect, so a
+  // token refreshed after the 15-minute access-token expiry is picked up.
+  const auth = options?.withAuth
+    ? (callback: (data: object) => void) => callback({ token: getAccessToken() ?? undefined })
+    : undefined
 
   return io(`${API_BASE_URL}${namespace}`, {
     autoConnect: false,

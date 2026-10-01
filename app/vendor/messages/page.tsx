@@ -178,8 +178,6 @@ export default function VendorMessagesPage() {
 
     sendChatMessage(socket, {
       conversationId: selectedConversationId,
-      senderId: user.id,
-      senderType: "vendor",
       messageType: "predefined",
       content: predefined.text,
       predefinedMessageId: predefined._id,
