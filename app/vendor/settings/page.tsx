@@ -7,6 +7,7 @@ import { useEffect, useState } from "react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { PasswordInput } from "@/components/ui/password-input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Switch } from "@/components/ui/switch"
@@ -485,27 +486,24 @@ export default function VendorSettingsPage() {
                 <div className="space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="currentPassword">Current Password</Label>
-                    <Input
+                    <PasswordInput
                       id="currentPassword"
-                      type="password"
                       value={passwordForm.currentPassword}
                       onChange={(e) => setPasswordForm({ ...passwordForm, currentPassword: e.target.value })}
                     />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="newPassword">New Password</Label>
-                    <Input
+                    <PasswordInput
                       id="newPassword"
-                      type="password"
                       value={passwordForm.newPassword}
                       onChange={(e) => setPasswordForm({ ...passwordForm, newPassword: e.target.value })}
                     />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="confirmPassword">Confirm New Password</Label>
-                    <Input
+                    <PasswordInput
                       id="confirmPassword"
-                      type="password"
                       value={passwordForm.confirmPassword}
                       onChange={(e) => setPasswordForm({ ...passwordForm, confirmPassword: e.target.value })}
                     />

@@ -8,11 +8,14 @@ if (!API_BASE_URL && typeof window !== "undefined") {
 
 export class ApiError extends Error {
   status: number
+  /** The backend's field-level validation messages, kept for debugging; never shown to users. */
+  details: string[]
 
-  constructor(status: number, message: string) {
+  constructor(status: number, message: string, details: string[] = []) {
     super(message)
     this.name = "ApiError"
     this.status = status
+    this.details = details
   }
 }
 
@@ -53,6 +56,25 @@ async function refreshAccessToken(): Promise<boolean> {
   return result
 }
 
+const LOGIN_PATH = "/vendor/login"
+
+// A dead session (no refresh token, or the refresh call itself failed) means
+// every page on screen is about to be wrong - there is nothing useful left to
+// show, only a confusing "Unauthorized" where a login prompt belongs. This
+// sends the browser to the login page and never resolves, so the caller's
+// query/mutation just stays pending (no error flashes) until the navigation
+// actually takes over.
+function redirectToLogin(): Promise<never> {
+  if (typeof window !== "undefined" && window.location.pathname !== LOGIN_PATH) {
+    // A hard navigation is deliberate: this plain utility has no router to
+    // push through, and a full reload also clears any stale in-memory state
+    // (React Query cache, contexts) left over from the dead session.
+    // eslint-disable-next-line @next/next/no-location-assign-relative-destination
+    window.location.href = LOGIN_PATH
+  }
+  return new Promise<never>(() => {})
+}
+
 function buildUrl(path: string, query?: RequestOptions["query"]): string {
   const url = new URL(`${API_BASE_URL}/api${path}`)
   if (query) {
@@ -66,9 +88,22 @@ function buildUrl(path: string, query?: RequestOptions["query"]): string {
 const TOO_MANY_REQUESTS = 429
 const SECONDS_PER_MINUTE = 60
 
-async function parseErrorMessage(response: Response): Promise<string> {
-  if (response.status === TOO_MANY_REQUESTS) return describeRateLimit(response)
+const REJECTED_REQUEST_MESSAGE = "We couldn't process this request. Please refresh the page and try again."
 
+async function toApiError(response: Response): Promise<ApiError> {
+  if (response.status === TOO_MANY_REQUESTS) return new ApiError(response.status, describeRateLimit(response))
+
+  const message = await readErrorMessage(response)
+  if (!Array.isArray(message)) return new ApiError(response.status, message)
+
+  // A list means the backend's validation rejected the request's shape - a bug
+  // between app and API that the user cannot fix, and whose field names mean
+  // nothing to them. The details stay available to developers.
+  console.error(`API rejected ${response.url}:`, message)
+  return new ApiError(response.status, REJECTED_REQUEST_MESSAGE, message)
+}
+
+async function readErrorMessage(response: Response): Promise<string | string[]> {
   try {
     const json = await response.json()
     return json.message ?? response.statusText
@@ -103,10 +138,13 @@ async function performFetch(path: string, options: RequestOptions, retryOn401: b
     body: body !== undefined ? JSON.stringify(body) : undefined,
   })
 
-  if (response.status === 401 && auth && retryOn401) {
-    const refreshed = await refreshAccessToken()
-    if (refreshed) return performFetch(path, options, false)
+  if (response.status === 401 && auth) {
+    if (retryOn401) {
+      const refreshed = await refreshAccessToken()
+      if (refreshed) return performFetch(path, options, false)
+    }
     clearTokens()
+    return redirectToLogin()
   }
 
   return response
@@ -117,7 +155,7 @@ export async function apiFetch<T>(path: string, options: RequestOptions = {}): P
   const response = await performFetch(path, options, true)
 
   if (!response.ok) {
-    throw new ApiError(response.status, await parseErrorMessage(response))
+    throw await toApiError(response)
   }
 
   if (response.status === 204) return undefined as T
@@ -133,7 +171,7 @@ export async function apiUpload<T>(path: string, formData: FormData, method: "PO
   const response = await fetch(buildUrl(path), { method, headers, body: formData })
 
   if (!response.ok) {
-    throw new ApiError(response.status, await parseErrorMessage(response))
+    throw await toApiError(response)
   }
 
   return response.json() as Promise<T>
