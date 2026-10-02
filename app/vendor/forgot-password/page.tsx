@@ -81,7 +81,7 @@ export default function VendorForgotPasswordPage() {
             <div className="bg-muted rounded-lg p-4 text-center">
               <div className="text-4xl mb-2">📧</div>
               <p className="text-sm text-muted-foreground">
-                We've sent a password reset link to <strong>{email}</strong>
+                We&apos;ve sent a password reset link to <strong>{email}</strong>
               </p>
             </div>
             <Button

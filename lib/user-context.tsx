@@ -60,6 +60,9 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    // The stored session lives in localStorage, which the server render cannot
+    // read, so it can only be restored after hydration.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setUser(readStoredUser());
     setIsLoading(false);
   }, []);
@@ -71,11 +74,10 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     writeStoredUser(nextUser);
   };
 
+  // Registration does not sign the vendor in: the account stays pending until
+  // an admin approves it, and only then can the vendor log in.
   const register = async (input: RegisterInput) => {
-    const { vendor } = await registerVendor(input);
-    const nextUser = toUser(vendor);
-    setUser(nextUser);
-    writeStoredUser(nextUser);
+    await registerVendor(input);
   };
 
   const logout = async () => {

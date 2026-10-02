@@ -15,8 +15,6 @@ export const CHAT_EVENTS = {
 
 export interface SendMessagePayload {
   conversationId: string
-  senderId: string
-  senderType: "vendor"
   messageType: "text" | "predefined" | "image"
   content: string
   /** Set when messageType is "predefined"; the backend's Message schema stores this but docs/chat.md's
@@ -26,7 +24,6 @@ export interface SendMessagePayload {
 
 export interface TypingPayload {
   conversationId: string
-  userId: string
   isTyping: boolean
 }
 
@@ -37,9 +34,10 @@ export interface MessageReadEvent {
 
 export type MessageReceivedEvent = Message
 
-/** Connects to the chat gateway. The gateway has no server-side auth (see docs/chat.md), so no token is sent. */
+/** Connects to the chat gateway, which refuses the handshake without a valid access token.
+ * The server derives the sender from that token, so payloads never carry sender fields. */
 export function createChatSocket(): Socket {
-  return createSocket("/chat")
+  return createSocket("/chat", { withAuth: true })
 }
 
 export function joinConversation(socket: Socket, conversationId: string): void {

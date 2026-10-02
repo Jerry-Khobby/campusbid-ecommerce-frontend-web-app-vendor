@@ -38,18 +38,13 @@ export function NotificationsPanel({ onChanged }: { onChanged?: () => void }) {
   const [notifications, setNotifications] = useState<AppNotification[]>([])
   const [isLoading, setIsLoading] = useState(true)
 
-  const refetch = () => {
+  const refetch = () =>
     fetchNotifications()
       .then(setNotifications)
       .catch((error) => addNotification(getErrorMessage(error, "Failed to load notifications"), "error"))
-  }
 
   useEffect(() => {
-    setIsLoading(true)
-    fetchNotifications()
-      .then(setNotifications)
-      .catch((error) => addNotification(getErrorMessage(error, "Failed to load notifications"), "error"))
-      .finally(() => setIsLoading(false))
+    refetch().finally(() => setIsLoading(false))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 

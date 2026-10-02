@@ -63,13 +63,28 @@ function buildUrl(path: string, query?: RequestOptions["query"]): string {
   return url.toString()
 }
 
+const TOO_MANY_REQUESTS = 429
+const SECONDS_PER_MINUTE = 60
+
 async function parseErrorMessage(response: Response): Promise<string> {
+  if (response.status === TOO_MANY_REQUESTS) return describeRateLimit(response)
+
   try {
     const json = await response.json()
     return json.message ?? response.statusText
   } catch {
     return response.statusText
   }
+}
+
+// The backend rate-limits sign-in, password reset and delivery codes; its raw
+// "ThrottlerException" text means nothing to a user, so say how long to wait.
+function describeRateLimit(response: Response): string {
+  const retryAfterSeconds = Number(response.headers.get("Retry-After"))
+  if (!retryAfterSeconds) return "Too many attempts. Please wait a few minutes and try again."
+
+  const minutes = Math.max(1, Math.ceil(retryAfterSeconds / SECONDS_PER_MINUTE))
+  return `Too many attempts. Please wait ${minutes} minute${minutes === 1 ? "" : "s"} and try again.`
 }
 
 async function performFetch(path: string, options: RequestOptions, retryOn401: boolean): Promise<Response> {
