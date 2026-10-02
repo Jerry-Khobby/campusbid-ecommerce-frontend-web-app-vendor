@@ -30,3 +30,7 @@ export async function markAllNotificationsAsRead(): Promise<void> {
 export async function deleteNotification(id: string): Promise<void> {
   await apiFetch(`/notifications/${id}`, { method: "DELETE" })
 }
+
+export async function clearAllNotifications(): Promise<void> {
+  await apiFetch("/notifications", { method: "DELETE" })
+}

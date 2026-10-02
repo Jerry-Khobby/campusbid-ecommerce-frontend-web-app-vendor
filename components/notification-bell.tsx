@@ -40,7 +40,7 @@ export function NotificationBell() {
         <DialogHeader>
           <DialogTitle>Notifications</DialogTitle>
         </DialogHeader>
-        <NotificationsPanel onChanged={refreshUnreadCount} />
+        <NotificationsPanel onChanged={refreshUnreadCount} onNavigate={() => setOpen(false)} />
       </DialogContent>
     </Dialog>
   )
