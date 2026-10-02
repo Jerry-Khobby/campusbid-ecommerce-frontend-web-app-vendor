@@ -20,6 +20,7 @@ const STATUS_OPTIONS: OrderStatus[] = [
   "ready",
   "out_for_delivery",
   "delivered",
+  "disputed",
   "completed",
   "cancelled",
   "refunded",
@@ -58,6 +59,8 @@ function getStatusColor(status: OrderStatus): string {
       return "bg-purple-100 text-purple-700"
     case "pending":
       return "bg-yellow-100 text-yellow-700"
+    case "disputed":
+      return "bg-amber-100 text-amber-800"
     case "cancelled":
     case "refunded":
       return "bg-red-100 text-red-700"

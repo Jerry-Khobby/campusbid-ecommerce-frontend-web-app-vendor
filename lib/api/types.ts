@@ -118,6 +118,7 @@ export type OrderStatus =
   | "ready"
   | "out_for_delivery"
   | "delivered"
+  | "disputed"
   | "completed"
   | "cancelled"
   | "refunded"
