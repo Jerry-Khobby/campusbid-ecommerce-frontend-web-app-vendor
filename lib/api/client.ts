@@ -56,6 +56,25 @@ async function refreshAccessToken(): Promise<boolean> {
   return result
 }
 
+const LOGIN_PATH = "/vendor/login"
+
+// A dead session (no refresh token, or the refresh call itself failed) means
+// every page on screen is about to be wrong - there is nothing useful left to
+// show, only a confusing "Unauthorized" where a login prompt belongs. This
+// sends the browser to the login page and never resolves, so the caller's
+// query/mutation just stays pending (no error flashes) until the navigation
+// actually takes over.
+function redirectToLogin(): Promise<never> {
+  if (typeof window !== "undefined" && window.location.pathname !== LOGIN_PATH) {
+    // A hard navigation is deliberate: this plain utility has no router to
+    // push through, and a full reload also clears any stale in-memory state
+    // (React Query cache, contexts) left over from the dead session.
+    // eslint-disable-next-line @next/next/no-location-assign-relative-destination
+    window.location.href = LOGIN_PATH
+  }
+  return new Promise<never>(() => {})
+}
+
 function buildUrl(path: string, query?: RequestOptions["query"]): string {
   const url = new URL(`${API_BASE_URL}/api${path}`)
   if (query) {
@@ -119,10 +138,13 @@ async function performFetch(path: string, options: RequestOptions, retryOn401: b
     body: body !== undefined ? JSON.stringify(body) : undefined,
   })
 
-  if (response.status === 401 && auth && retryOn401) {
-    const refreshed = await refreshAccessToken()
-    if (refreshed) return performFetch(path, options, false)
+  if (response.status === 401 && auth) {
+    if (retryOn401) {
+      const refreshed = await refreshAccessToken()
+      if (refreshed) return performFetch(path, options, false)
+    }
     clearTokens()
+    return redirectToLogin()
   }
 
   return response
