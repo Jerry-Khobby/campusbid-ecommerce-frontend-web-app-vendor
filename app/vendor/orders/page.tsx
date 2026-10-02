@@ -35,6 +35,21 @@ function isDeliveryCodeComplete(code: string): boolean {
   return code.length === DELIVERY_CODE_LENGTH || code.length === LEGACY_DELIVERY_CODE_LENGTH
 }
 
+// One line per status telling the vendor what to do next, shown on every
+// order so it is always clear which button to press, or that none is needed.
+const VENDOR_NEXT_STEPS: Record<OrderStatus, string> = {
+  pending: "New order: accept it to start, or reject it if you can't fulfil it.",
+  accepted: "Accepted. Press Start Preparing when you begin working on it.",
+  preparing: "Press Mark as Ready once the order is packed.",
+  ready: "Press Out for Delivery when you set off to deliver it.",
+  out_for_delivery: "When you hand it over, ask the customer for their 6-digit delivery code and press Mark Delivered.",
+  delivered: "Delivered. You'll be paid once the customer confirms delivery or it completes automatically.",
+  disputed: "The customer reported a problem. Payment is on hold while our team reviews it - no action needed.",
+  completed: "Completed. The payment is in your balance - request a payout from the Payouts page.",
+  cancelled: "This order was cancelled.",
+  refunded: "The customer was refunded for this order.",
+}
+
 function getErrorMessage(error: unknown): string {
   return error instanceof ApiError ? error.message : "Something went wrong. Please try again."
 }
@@ -294,6 +309,7 @@ export default function VendorOrdersPage() {
                     ))}
                   </div>
                 </div>
+                <p className="text-sm text-muted-foreground">{VENDOR_NEXT_STEPS[order.status]}</p>
                 <div className="flex flex-wrap gap-2 pt-2">
                   {order.status === "pending" && (
                     <>
